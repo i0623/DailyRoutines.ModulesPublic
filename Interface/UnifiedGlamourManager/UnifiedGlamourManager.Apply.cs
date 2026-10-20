@@ -329,16 +329,41 @@ public unsafe partial class UnifiedGlamourManager
         return true;
     }
 
-    private static bool CanTryOnPreset() => AgentTryon.Instance() != null && !ICondition.Instance().IsOccupiedInEvent;
+    private static bool CanTryOnPreset()
+    {
+        if (!IClientState.Instance().IsLoggedIn)
+            return false;
+
+        if (AgentTryon.Instance() == null)
+            return false;
+
+        var condition = ICondition.Instance();
+        var manager   = RaptureAtkUnitManager.Instance();
+        var dresser   = manager == null ?
+                            null :
+                            manager->GetAddonByName(nameof(MiragePrismPrismBox));
+        var plateEditor = manager == null ?
+                              null :
+                              manager->GetAddonByName(nameof(MiragePrismMiragePlate));
+        var glamourWindowVisible =
+            (dresser != null && dresser->IsVisible) || (plateEditor != null && plateEditor->IsVisible);
+        return !condition.IsBetweenAreas && (!condition.IsOccupiedInEvent || glamourWindowVisible);
+    }
 
     private bool StartTryOnPreset
     (
-        PlatePreset preset
+        PlatePreset? preset,
+        Func<bool>?  canContinue = null
     )
     {
-        if (ICondition.Instance().IsOccupiedInEvent ||
-            AgentTryon.Instance() == null)
+        if (preset == null || IsDisposed || (canContinue != null && !canContinue()))
+            return true;
+
+        if (!CanTryOnPreset())
             return false;
+
+        preset = CopyPreset(preset);
+        NormalizePresetEquipment(preset);
 
         var entries = preset.Items
                             .Where
@@ -352,18 +377,49 @@ public unsafe partial class UnifiedGlamourManager
 
         if (entries is not { Count: > 0 })
         {
-            TaskHelper.Abort();
-            return true;
+            if (!InventoryType.EquippedItems.TryGetItems
+                (
+                    x => x.ItemId != 0 && PlateSlots.Contains(x.Slot),
+                    out var equipped
+                ) || equipped.Count == 0)
+            {
+                return true;
+            }
+
+            var current = equipped[0];
+            entries.Add
+            (
+                new
+                (
+                    (uint)Array.IndexOf(PlateSlots, current.Slot),
+                    current.GlamourId != 0 ?
+                        current.GlamourId :
+                        current.ItemId,
+                    current.Stains[0],
+                    current.Stains[1]
+                )
+            );
         }
 
-        AgentTryon.Instance()->SaveDeleteOutfit = true;
-
+        var firstItem = true;
         foreach (var entry in entries)
         {
             TaskHelper.Enqueue
             (() =>
                 {
-                    AgentTryon.TryOn(0, entry.ItemID, entry.Stain0ID, entry.Stain1ID);
+                    if (IsDisposed || (canContinue != null && !canContinue()))
+                        return true;
+
+                    if (!CanTryOnPreset())
+                    {
+                        return true;
+                    }
+
+                    if (firstItem)
+                        AgentTryon.Instance()->SaveDeleteOutfit = false;
+                    AgentTryon.TryOn(0, ItemUtil.GetBaseId(entry.ItemID).ItemId, entry.Stain0ID, entry.Stain1ID);
+                    AgentTryon.Instance()->SaveDeleteOutfit = true;
+                    firstItem = false;
                     return true;
                 }
             );

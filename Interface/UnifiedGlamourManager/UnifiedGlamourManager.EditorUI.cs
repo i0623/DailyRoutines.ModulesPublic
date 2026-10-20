@@ -71,6 +71,7 @@ public unsafe partial class UnifiedGlamourManager
         {
             if (ImGui.Button(Lang.Get("Apply"), new Vector2(-1f, 0f)))
             {
+                InvalidatePresetPreview();
                 TaskHelper.Enqueue(StartApplyPreset);
             }
         }
@@ -324,6 +325,10 @@ public unsafe partial class UnifiedGlamourManager
             }
         }
 
+        if (ImGui.Checkbox(Lang.Get("UnifiedGlamourManager-Editor-LivePreview"), ref enablePresetLivePreview))
+            QueuePresetPreview();
+
+        ImGui.SameLine();
         using (ImRaii.Disabled(string.IsNullOrWhiteSpace(draft.Title)))
         {
             if (ImGui.Button(Lang.Get("Save")))
@@ -343,8 +348,10 @@ public unsafe partial class UnifiedGlamourManager
         {
             FillEmptyPresetSlots(editingPreset);
             NormalizePresetEquipment(editingPreset);
+            QueuePresetPreview();
         }
 
+        UpdatePresetLivePreview();
     }
 
     private void DrawPresetItemIcon

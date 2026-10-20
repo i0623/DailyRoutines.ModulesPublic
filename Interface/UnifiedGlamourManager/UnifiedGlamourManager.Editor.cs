@@ -57,10 +57,12 @@ public unsafe partial class UnifiedGlamourManager
         editingStainIndex      = -1;
         presetEditorSearchText = string.Empty;
         presetEditorItemsDirty = true;
+        QueuePresetPreview();
     }
 
     private void EndPresetEditing()
     {
+        InvalidatePresetPreview();
         isPresetEditorOpen    = false;
         editingPreset         = null;
         editingPresetBaseline = null;
@@ -81,6 +83,7 @@ public unsafe partial class UnifiedGlamourManager
             return;
 
         selectedPreset = preset;
+        QueuePresetPreview();
     }
 
     private void SetPresetEditorItem
@@ -95,6 +98,7 @@ public unsafe partial class UnifiedGlamourManager
         editingPreset.Items.RemoveAll(x => x.SlotIndex == (uint)editingSlotIndex);
         if (itemID == 0)
         {
+            QueuePresetPreview();
             return;
         }
 
@@ -118,6 +122,7 @@ public unsafe partial class UnifiedGlamourManager
                     (byte)0
             )
         );
+        QueuePresetPreview();
     }
 
     private void LoadPresetEditorStains()
@@ -245,5 +250,6 @@ public unsafe partial class UnifiedGlamourManager
                 entry with { Stain0ID = dye } :
                 entry with { Stain1ID = dye }
         );
+        QueuePresetPreview();
     }
 }

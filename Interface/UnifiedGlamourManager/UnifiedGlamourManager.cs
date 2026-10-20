@@ -81,6 +81,7 @@ public partial class UnifiedGlamourManager : ModuleBase
         presetItemRows?.Dispose();
         presetItemRows = null;
         presetItemIndex.Clear();
+        enablePresetLivePreview = false;
         TaskHelper?.Abort();
         if (openOverlayPlateTabPayload != null)
             LinkPayloadManager.Instance().Unreg(openOverlayPlateTabPayload.CommandId);
