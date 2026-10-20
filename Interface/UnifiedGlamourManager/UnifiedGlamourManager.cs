@@ -5,6 +5,7 @@ using DailyRoutines.Extensions;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Lumina.Excel.Sheets;
+using OmenTools.Dalamud;
 using OmenTools.OmenService;
 
 namespace DailyRoutines.ModulesPublic.Interface.UnifiedGlamourManager;
@@ -35,7 +36,11 @@ public partial class UnifiedGlamourManager : ModuleBase
                                .OrderByDescending(x => x.CreatedAt)
                                .FirstOrDefault();
 
-        TaskHelper ??= new() { TimeoutMS = TASK_TIMEOUT_MS };
+        TaskHelper = new() { TimeoutMS = TASK_TIMEOUT_MS };
+
+        IClientState.Instance().Login  += ResetStoredItemsSession;
+        IClientState.Instance().Logout += OnStoredItemsLogout;
+        StartRefreshAll();
 
         Overlay ??= new(this);
 
@@ -70,6 +75,9 @@ public partial class UnifiedGlamourManager : ModuleBase
 
     protected override void Uninit()
     {
+        IClientState.Instance().Login  -= ResetStoredItemsSession;
+        IClientState.Instance().Logout -= OnStoredItemsLogout;
+        TaskHelper?.Abort();
         if (openOverlayPlateTabPayload != null)
             LinkPayloadManager.Instance().Unreg(openOverlayPlateTabPayload.CommandId);
         
@@ -89,7 +97,7 @@ public partial class UnifiedGlamourManager : ModuleBase
     (
         string command,
         string arguments
-    ) => Overlay!.IsOpen = true;
+    ) => Overlay.IsOpen = true;
 
     private static bool IsEquipSlotCategoryCompatibleWithPlateSlot
     (

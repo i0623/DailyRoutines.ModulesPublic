@@ -51,20 +51,21 @@ public partial class UnifiedGlamourManager
 
     private void AddSetPartItem
     (
-        SetPartInfo setPart,
-        uint        rawItemID,
-        uint        prismBoxIndex,
-        uint        cabinetID,
-        uint        parentItemID,
-        string      parentName,
-        ItemSource  source
+        List<UnifiedItem> target,
+        SetPartInfo       setPart,
+        uint              rawItemID,
+        uint              prismBoxIndex,
+        uint              cabinetID,
+        uint              parentItemID,
+        string            parentName,
+        ItemSource        source
     )
     {
         if (!LuminaGetter.TryGetRow<ItemSheet>(setPart.ItemID, out var partRow) ||
             !TryGetItemName(partRow, out var partName))
             return;
 
-        items.Add
+        target.Add
         (
             UnifiedItem.Create
             (
@@ -117,7 +118,7 @@ public partial class UnifiedGlamourManager
         IGrouping<string, UnifiedItem> group
     )
     {
-        var first = group.First();
+        var first = group.First().Copy();
         if (first.IsSetPart) return first;
 
         foreach (var other in group.Skip(1))

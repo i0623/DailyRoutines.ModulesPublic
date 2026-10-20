@@ -9,7 +9,6 @@ using CabinetSheet = Lumina.Excel.Sheets.Cabinet;
 using GameCabinet = FFXIVClientStructs.FFXIV.Client.Game.UI.Cabinet;
 using ItemSheet = Lumina.Excel.Sheets.Item;
 using static FFXIVClientStructs.FFXIV.Client.UI.Agent.AgentMiragePrismMiragePlateData;
-using Action = System.Action;
 
 namespace DailyRoutines.ModulesPublic.Interface.UnifiedGlamourManager;
 
@@ -17,6 +16,9 @@ public unsafe partial class UnifiedGlamourManager
 {
     private readonly List<UnifiedItem> items = [];
     private          bool              isRefreshingItems;
+
+    private List<UnifiedItem> prismBoxItems;
+    private List<UnifiedItem> cabinetItems;
 
     private static bool TryGetLoadedMirageManager
     (
@@ -45,69 +47,45 @@ public unsafe partial class UnifiedGlamourManager
         UnifiedItem? reselectItem = null
     )
     {
+        if (!IClientState.Instance().IsLoggedIn)
+            return;
+
         var itemToReselect = reselectItem ?? selectedItem;
-
-        TaskHelper ??= new()
-        {
-            TimeoutMS = TASK_TIMEOUT_MS
-        };
-        TaskHelper.Abort();
-
-        isRefreshingItems = true;
-        items.Clear();
-        filteredItems.Clear();
-        MarkFilteredItemsDirty(true, true);
-
-        TaskHelper.Enqueue(() => RunRefreshStep(LoadPrismBoxItems, nameof(LoadPrismBoxItems)), nameof(LoadPrismBoxItems));
-        TaskHelper.DelayNext(REFRESH_STEP_DELAY_MS);
-        TaskHelper.Enqueue(() => RunRefreshStep(LoadCabinetItems, nameof(LoadCabinetItems)), nameof(LoadCabinetItems));
-        TaskHelper.DelayNext(REFRESH_STEP_DELAY_MS);
         TaskHelper.Enqueue
-        (
-            () =>
+        (() =>
             {
+                isRefreshingItems = true;
                 try
                 {
+                    prismBoxItems = LoadPrismBoxItems();
+                    cabinetItems  = LoadCabinetItems();
+                    items.Clear();
+                    items.AddRange(prismBoxItems ?? []);
+                    items.AddRange(cabinetItems ?? []);
                     MergeItems();
-                    selectedItem = itemToReselect != null ?
-                                       items.FirstOrDefault(x => x == itemToReselect) :
-                                       null;
+                    selectedItem = itemToReselect == null ?
+                                       null :
+                                       items.FirstOrDefault(x => x == itemToReselect);
                 }
                 catch (Exception ex)
                 {
-                    DLog.Error("UnifiedGlamourManager refresh merge failed", ex);
-                    selectedItem = null;
+                    DLog.Error("UnifiedGlamourManager refresh failed", ex);
                 }
                 finally
                 {
                     isRefreshingItems = false;
                     MarkFilteredItemsDirty(true, true);
                 }
-            },
-            nameof(MergeItems)
+            }
         );
     }
 
-    private static void RunRefreshStep
-    (
-        Action action,
-        string stepName
-    )
-    {
-        try
-        {
-            action();
-        }
-        catch (Exception ex)
-        {
-            DLog.Error($"UnifiedGlamourManager refresh step failed: {stepName}", ex);
-        }
-    }
-
     // 投影台/收藏柜数据读取
-    private void LoadPrismBoxItems()
+    private List<UnifiedItem> LoadPrismBoxItems()
     {
-        if (!TryGetLoadedMirageManager(out var manager)) return;
+        if (!TryGetLoadedMirageManager(out var manager)) return prismBoxItems;
+
+        List<UnifiedItem> result = [];
 
         var itemSheet = LuminaGetter.Get<ItemSheet>();
 
@@ -123,6 +101,7 @@ public unsafe partial class UnifiedGlamourManager
 
             AddStoredItem
             (
+                result,
                 itemRow.Value,
                 name,
                 ItemSource.PrismBox,
@@ -137,12 +116,15 @@ public unsafe partial class UnifiedGlamourManager
 
         }
 
+        return result;
     }
 
-    private void LoadCabinetItems()
+    private List<UnifiedItem> LoadCabinetItems()
     {
         var cabinet = GetLoadedCabinet();
-        if (cabinet == null) return;
+        if (cabinet == null) return cabinetItems;
+
+        List<UnifiedItem> result = [];
 
         var itemSheet = LuminaGetter.Get<ItemSheet>();
 
@@ -156,27 +138,30 @@ public unsafe partial class UnifiedGlamourManager
             if (itemRow == null || !TryGetItemName(itemRow.Value, out var name))
                 continue;
 
-            AddStoredItem(itemRow.Value, name, ItemSource.Cabinet, itemID, itemID, 0, cabinetID);
+            AddStoredItem(result, itemRow.Value, name, ItemSource.Cabinet, itemID, itemID, 0, cabinetID);
         }
+
+        return result;
     }
 
     private void AddStoredItem
     (
-        ItemSheet      item,
-        string         name,
-        ItemSource     source,
-        uint           itemID,
-        uint           rawItemID,
-        uint           prismBoxIndex,
-        uint           cabinetID,
-        uint           stain0ID = 0,
-        uint           stain1ID = 0,
-        MirageManager* manager  = null
+        List<UnifiedItem> target,
+        ItemSheet         item,
+        string            name,
+        ItemSource        source,
+        uint              itemID,
+        uint              rawItemID,
+        uint              prismBoxIndex,
+        uint              cabinetID,
+        uint              stain0ID = 0,
+        uint              stain1ID = 0,
+        MirageManager*    manager  = null
     )
     {
         var setParts = GetSetParts(itemID);
 
-        items.Add
+        target.Add
         (
             UnifiedItem.Create
             (
@@ -196,7 +181,7 @@ public unsafe partial class UnifiedGlamourManager
         foreach (var setPart in setParts)
         {
             if (source != ItemSource.PrismBox || (manager != null && manager->IsSetSlotUnlocked(prismBoxIndex, setPart.SlotIndex)))
-                AddSetPartItem(setPart, rawItemID, prismBoxIndex, cabinetID, itemID, name, source);
+                AddSetPartItem(target, setPart, rawItemID, prismBoxIndex, cabinetID, itemID, name, source);
         }
     }
 
@@ -310,4 +295,22 @@ public unsafe partial class UnifiedGlamourManager
             PresetSource.OtherPlayer => $"{Lang.Get("UnifiedGlamourManager-Preset-UntitledPreset")}-{LuminaWrapper.GetAddonText(7979)}",
             _                        => Lang.Get("UnifiedGlamourManager-Preset-UntitledPreset")
         };
+
+    private void ResetStoredItemsSession()
+    {
+        TaskHelper?.Abort();
+        isRefreshingItems = false;
+        prismBoxItems     = null;
+        cabinetItems      = null;
+        items.Clear();
+        filteredItems.Clear();
+        selectedItem = null;
+        MarkFilteredItemsDirty(true, true);
+    }
+
+    private void OnStoredItemsLogout
+    (
+        int code,
+        int type
+    ) => ResetStoredItemsSession();
 }

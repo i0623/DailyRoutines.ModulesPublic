@@ -59,6 +59,8 @@ public partial class UnifiedGlamourManager
         public string ParentSetName          { get; set; } = string.Empty;
         public string SetPartLabel           { get; set; } = string.Empty;
 
+        public UnifiedItem Copy() => (UnifiedItem)MemberwiseClone();
+
         public bool CanUseInPlate => (InPrismBox || InCabinet) && !IsSetContainer;
 
         public Stain? Stain0 => LuminaGetter.TryGetRow<Stain>(Stain0ID, out var stain) ?
