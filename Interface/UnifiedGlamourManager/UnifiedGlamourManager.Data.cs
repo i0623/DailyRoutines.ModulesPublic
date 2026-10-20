@@ -302,9 +302,11 @@ public unsafe partial class UnifiedGlamourManager
     {
         TaskHelper?.Abort();
         InvalidatePresetPreview();
-        isRefreshingItems = false;
-        prismBoxItems     = null;
-        cabinetItems      = null;
+        openItemSearchMenu = false;
+        itemSearchOptions  = [];
+        isRefreshingItems  = false;
+        prismBoxItems      = null;
+        cabinetItems       = null;
         items.Clear();
         filteredItems.Clear();
         selectedItem = null;

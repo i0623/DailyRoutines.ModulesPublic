@@ -209,6 +209,7 @@ public unsafe partial class UnifiedGlamourManager
                     if (ImGui.Selectable($"{itemLabel}##Item", editingSlotIndex == slot && editingStainIndex == -1))
                         SelectPresetEditorSlot(slot, -1);
 
+                    HandlePresetItemContextMenu(entry.ItemID);
 
                     for (var channel = 0; channel < 2; channel++)
                     {
@@ -298,6 +299,7 @@ public unsafe partial class UnifiedGlamourManager
                             var item = presetEditorItems[index];
                             if (ImGui.Selectable($"{item.Name} ({item.ItemID})##{item.ItemID}"))
                                 SetPresetEditorItem(item.ItemID);
+                            HandlePresetItemContextMenu(item.ItemID);
                         }
                     }
 
@@ -351,6 +353,7 @@ public unsafe partial class UnifiedGlamourManager
             QueuePresetPreview();
         }
 
+        DrawPresetItemSearchMenu();
         UpdatePresetLivePreview();
     }
 
@@ -363,6 +366,7 @@ public unsafe partial class UnifiedGlamourManager
     )
     {
         DrawItemIcon(iconID, ImGui.GetFrameHeight());
+        HandlePresetItemContextMenu(itemID);
         if (owned.Contains(ItemUtil.GetBaseId(itemID).ItemId))
             return;
 
