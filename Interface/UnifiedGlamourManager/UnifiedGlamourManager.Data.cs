@@ -307,6 +307,7 @@ public unsafe partial class UnifiedGlamourManager
         isRefreshingItems  = false;
         prismBoxItems      = null;
         cabinetItems       = null;
+        ResetGlamaholicImport();
         items.Clear();
         filteredItems.Clear();
         selectedItem = null;
