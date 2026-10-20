@@ -74,6 +74,8 @@ public unsafe partial class UnifiedGlamourManager
                 finally
                 {
                     isRefreshingItems = false;
+                    InvalidateOwnedEquipment();
+                    presetEditorItemsDirty = true;
                     MarkFilteredItemsDirty(true, true);
                 }
             }
@@ -305,6 +307,10 @@ public unsafe partial class UnifiedGlamourManager
         items.Clear();
         filteredItems.Clear();
         selectedItem = null;
+        ownedEquipment.Clear();
+        ownedEquipmentComplete = false;
+        InvalidateOwnedEquipment();
+        presetEditorItemsDirty = true;
         MarkFilteredItemsDirty(true, true);
     }
 

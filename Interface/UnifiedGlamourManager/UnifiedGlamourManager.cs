@@ -77,6 +77,10 @@ public partial class UnifiedGlamourManager : ModuleBase
     {
         IClientState.Instance().Login  -= ResetStoredItemsSession;
         IClientState.Instance().Logout -= OnStoredItemsLogout;
+        EndPresetEditing();
+        presetItemRows?.Dispose();
+        presetItemRows = null;
+        presetItemIndex.Clear();
         TaskHelper?.Abort();
         if (openOverlayPlateTabPayload != null)
             LinkPayloadManager.Instance().Unreg(openOverlayPlateTabPayload.CommandId);

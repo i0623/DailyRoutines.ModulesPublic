@@ -1,5 +1,7 @@
 using DailyRoutines.Extensions;
 using Dalamud.Utility;
+using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using Lumina.Excel.Sheets;
 using Lumina.Text.ReadOnly;
@@ -184,9 +186,10 @@ public unsafe partial class UnifiedGlamourManager
         };
 
         preset.Items.AddRange(items);
+        NormalizePresetWithNotice(preset);
 
         config.Presets.Add(preset);
-        selectedPreset = preset;
+        SelectPreset(preset, false);
 
         config.Save(this);
         
@@ -207,10 +210,12 @@ public unsafe partial class UnifiedGlamourManager
             selectedPreset == null)
             return false;
 
-        var entries = selectedPreset.Items
-                                    .Where(x => x.SlotIndex < PlateSlotAddonTextIDs.Length)
-                                    .OrderBy(x => x.SlotIndex)
-                                    .ToList();
+        var applyPreset = CopyPreset(selectedPreset);
+        NormalizePresetEquipment(applyPreset);
+        var entries = applyPreset.Items
+                                 .Where(x => x.SlotIndex < PlateSlotAddonTextIDs.Length)
+                                 .OrderBy(x => x.SlotIndex)
+                                 .ToList();
 
         missingApplyItems.Clear();
 
@@ -323,6 +328,8 @@ public unsafe partial class UnifiedGlamourManager
 
         return true;
     }
+
+    private static bool CanTryOnPreset() => AgentTryon.Instance() != null && !ICondition.Instance().IsOccupiedInEvent;
 
     private bool StartTryOnPreset
     (
