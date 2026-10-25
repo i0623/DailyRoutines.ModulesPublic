@@ -11,6 +11,21 @@ public unsafe partial class UnifiedGlamourManager
     private CircleButtonNode? inspectSaveButtonNode;
     private CircleButtonNode? plateSaveButtonNode;
 
+    private void OnStorageAddon
+    (
+        AddonEvent type,
+        AddonArgs  args
+    )
+    {
+        if (type == AddonEvent.PostDraw &&
+            (!Throttler.Shared.Throttle("UnifiedGlamourManager-CabinetCache") || !RefreshNativeCabinetCache()))
+        {
+            return;
+        }
+
+        StartRefreshAll();
+    }
+
     private void OnPlateEditorAddon
     (
         AddonEvent type,

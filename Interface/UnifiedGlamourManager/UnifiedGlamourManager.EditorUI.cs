@@ -316,7 +316,9 @@ public unsafe partial class UnifiedGlamourManager
                         if (search.Length > 0 &&
                             !name.Contains(search, StringComparison.OrdinalIgnoreCase) &&
                             stain.RowId.ToString() != search)
+                        {
                             continue;
+                        }
 
                         DrawStainColor(stain);
                         ImGui.SameLine();

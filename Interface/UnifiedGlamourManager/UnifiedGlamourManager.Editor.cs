@@ -173,7 +173,9 @@ public unsafe partial class UnifiedGlamourManager
                 if (row.RowId == 0 || row.ModelMain == 0 ||
                     !LuminaGetter.TryGetRow<EquipSlotCategory>(row.EquipSlotCategory.RowId, out var category) ||
                     !TryGetItemName(row, out var name))
+                {
                     continue;
+                }
                 var slots = 0U;
                 for (var slot = 0; slot < PlateSlotDefinitions.Length; slot++)
                 {
