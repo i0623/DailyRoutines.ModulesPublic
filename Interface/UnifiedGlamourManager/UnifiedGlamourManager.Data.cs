@@ -18,8 +18,7 @@ public unsafe partial class UnifiedGlamourManager
     private readonly List<UnifiedItem> items = [];
     private          bool              isRefreshingItems;
 
-    private List<UnifiedItem> prismBoxItems;
-    private List<UnifiedItem> cabinetItems;
+    private readonly Dictionary<uint, (uint ItemID, uint Stain0ID, uint Stain1ID)> prismBoxStains = [];
 
     private static readonly Lazy<Dictionary<uint, uint>> NativeCabinetItems = new
     (() => LuminaGetter.Get<Lumina.Excel.Sheets.Cabinet>()
@@ -174,11 +173,9 @@ public unsafe partial class UnifiedGlamourManager
                 try
                 {
                     RefreshNativeCabinetCache();
-                    prismBoxItems = LoadPrismBoxItems();
-                    cabinetItems  = LoadCabinetItems();
                     items.Clear();
-                    items.AddRange(prismBoxItems ?? []);
-                    items.AddRange(cabinetItems ?? []);
+                    items.AddRange(LoadPrismBoxItems());
+                    items.AddRange(LoadCabinetItems());
                     MergeItems();
                     selectedItem = itemToReselect == null ?
                                        null :
@@ -205,11 +202,19 @@ public unsafe partial class UnifiedGlamourManager
         var finder    = ItemFinderModule.Instance();
         var contentID = LocalPlayerState.ContentID;
         var cached    = ReadNativePrismBoxItems(finder, contentID);
-        if (cached == null || (cached.Count == 0 && !GetNativeStorageStatus(finder, contentID).PrismBox))
-            return prismBoxItems;
+        if (cached == null)
+            return [];
 
         var liveLoaded = TryGetLoadedMirageManager(out var manager);
-        var previous   = prismBoxItems?.Where(x => !x.IsSetPart).ToDictionary(x => x.PrismBoxIndex);
+
+        if (GetNativeStorageStatus(finder, contentID).PrismBox)
+        {
+            foreach (var index in prismBoxStains.Keys.ToArray())
+            {
+                if (index >= finder->GlamourDresserItemIds.Length || finder->GlamourDresserItemIds[(int)index] == 0)
+                    prismBoxStains.Remove(index);
+            }
+        }
 
         List<UnifiedItem> result = [];
 
@@ -229,11 +234,13 @@ public unsafe partial class UnifiedGlamourManager
                 stain0 = manager->PrismBoxStain0Ids[(int)index];
                 stain1 = manager->PrismBoxStain1Ids[(int)index];
             }
-            else if (previous != null && previous.TryGetValue(index, out var old) && old.ItemID == itemID)
+            else if (prismBoxStains.TryGetValue(index, out var old) && old.ItemID == itemID)
             {
                 stain0 = old.Stain0ID;
                 stain1 = old.Stain1ID;
             }
+
+            prismBoxStains[index] = (itemID, stain0, stain1);
 
             AddStoredItem
             (
@@ -259,8 +266,8 @@ public unsafe partial class UnifiedGlamourManager
         var finder    = ItemFinderModule.Instance();
         var contentID = LocalPlayerState.ContentID;
         var cached    = ReadNativeCabinetItems(finder, contentID, NativeCabinetItems.Value);
-        if (cached == null || (cached.Count == 0 && !GetNativeStorageStatus(finder, contentID).Cabinet))
-            return cabinetItems;
+        if (cached == null)
+            return [];
 
         List<UnifiedItem> result = [];
 
@@ -437,14 +444,12 @@ public unsafe partial class UnifiedGlamourManager
         openItemSearchMenu = false;
         itemSearchOptions  = [];
         isRefreshingItems  = false;
-        prismBoxItems      = null;
-        cabinetItems       = null;
+        prismBoxStains.Clear();
         ResetGlamaholicImport();
         items.Clear();
         filteredItems.Clear();
         selectedItem = null;
         ownedEquipment.Clear();
-        ownedInventoryItems.Clear();
         ownedEquipmentComplete = false;
         InvalidateOwnedEquipment();
         presetEditorItemsDirty = true;

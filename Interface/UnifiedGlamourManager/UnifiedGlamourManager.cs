@@ -88,8 +88,7 @@ public partial class UnifiedGlamourManager : ModuleBase
         openItemSearchMenu      = false;
         itemSearchOptions       = [];
         enablePresetLivePreview = false;
-        TaskHelper?.Abort();
-        ResetGlamaholicImport();
+        ResetStoredItemsSession();
         if (openOverlayPlateTabPayload != null)
             LinkPayloadManager.Instance().Unreg(openOverlayPlateTabPayload.CommandId);
         

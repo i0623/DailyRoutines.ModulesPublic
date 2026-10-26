@@ -15,8 +15,6 @@ public unsafe partial class UnifiedGlamourManager
     private bool          ownedEquipmentComplete;
     private long          nextOwnedEquipmentRefresh;
 
-    private readonly Dictionary<InventoryType, HashSet<uint>> ownedInventoryItems = [];
-
     private static readonly InventoryType[] OwnedEquipmentContainers =
         [.. Inventories.PlayerWithArmory.Where(x => x != InventoryType.ArmoryWaist)];
 
@@ -37,43 +35,44 @@ public unsafe partial class UnifiedGlamourManager
         out bool complete
     )
     {
+        if (!IClientState.Instance().IsLoggedIn || ICondition.Instance().IsBetweenAreas)
+        {
+            complete = false;
+            return CacheOwnedEquipment([], complete);
+        }
+
         if (Environment.TickCount64 < nextOwnedEquipmentRefresh)
         {
             complete = ownedEquipmentComplete;
             return ownedEquipment;
         }
 
-        if (!IClientState.Instance().IsLoggedIn || ICondition.Instance().IsBetweenAreas)
-        {
-            complete = ownedEquipmentComplete;
-            return ownedEquipment;
-        }
-
-        var manager = InventoryManager.Instance();
+        HashSet<uint> owned   = [];
+        var           manager = InventoryManager.Instance();
+        complete = manager != null;
         if (manager != null)
         {
             foreach (var type in OwnedEquipmentContainers)
             {
                 var container = manager->GetInventoryContainer(type);
                 if (container == null || !container->IsLoaded)
+                {
+                    complete = false;
                     continue;
+                }
 
-                HashSet<uint> inventoryItems = [];
                 for (var slot = 0; slot < container->Size; slot++)
                 {
                     var item = container->GetInventorySlot(slot);
                     if (item == null || item->ItemId == 0)
                         continue;
 
-                    inventoryItems.Add(item->GetBaseItemId());
+                    owned.Add(item->GetBaseItemId());
                 }
-
-                ownedInventoryItems[type] = inventoryItems;
             }
         }
 
-        HashSet<uint> owned           = [];
-        var           storageComplete = AddNativeStorageOwnership
+        var storageComplete = AddNativeStorageOwnership
         (
             ItemFinderModule.Instance(),
             LocalPlayerState.ContentID,
@@ -81,23 +80,8 @@ public unsafe partial class UnifiedGlamourManager
             NativeCabinetItems.Value,
             owned
         );
-        GetCachedOwnedEquipment(owned, storageComplete, out complete);
+        complete &= storageComplete;
         return CacheOwnedEquipment(owned, complete);
-    }
-
-    private HashSet<uint> GetCachedOwnedEquipment
-    (
-        HashSet<uint> owned,
-        bool          storageComplete,
-        out bool      complete
-    )
-    {
-        foreach (var inventory in ownedInventoryItems.Values)
-            owned.UnionWith(inventory);
-
-        complete = storageComplete &&
-                   ownedInventoryItems.Count == OwnedEquipmentContainers.Length;
-        return owned;
     }
 
     private static bool AddNativeStorageOwnership

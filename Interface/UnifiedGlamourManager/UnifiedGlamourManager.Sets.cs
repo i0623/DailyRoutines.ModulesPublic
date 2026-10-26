@@ -126,7 +126,7 @@ public partial class UnifiedGlamourManager
         IGrouping<string, UnifiedItem> group
     )
     {
-        var first = group.First().Copy();
+        var first = group.First();
         if (first.IsSetPart) return first;
 
         foreach (var other in group.Skip(1))
