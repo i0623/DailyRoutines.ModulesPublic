@@ -172,6 +172,13 @@ public unsafe partial class UnifiedGlamourManager
                 isRefreshingItems = true;
                 try
                 {
+                    if (!IClientState.Instance().IsLoggedIn ||
+                        ICondition.Instance().IsBetweenAreas ||
+                        !IsNativeStorageOwner(ItemFinderModule.Instance(), LocalPlayerState.ContentID))
+                    {
+                        return;
+                    }
+
                     RefreshNativeCabinetCache();
                     items.Clear();
                     items.AddRange(LoadPrismBoxItems());

@@ -5,11 +5,11 @@ namespace DailyRoutines.ModulesPublic.Interface.UnifiedGlamourManager;
 
 public unsafe partial class UnifiedGlamourManager
 {
-    private bool        enablePresetLivePreview;
-    private long        nextPreviewAt;
-    private bool        isPreviewPending;
-    private long        previewVersion;
-    private bool        wasTryOnVisible;
+    private bool enablePresetLivePreview;
+    private long nextPreviewAt;
+    private bool isPreviewPending;
+    private long previewVersion;
+    private bool wasTryOnVisible;
 
     private void InvalidatePresetPreview()
     {

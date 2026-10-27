@@ -178,7 +178,7 @@ public unsafe partial class UnifiedGlamourManager
 
                 for (var slot = 0; slot < PlateSlotDefinitions.Length; slot++)
                 {
-                    using var id = ImRaii.PushId(slot);
+                    using var id  = ImRaii.PushId(slot);
                     var entry     = draft.Items.FirstOrDefault(x => x.SlotIndex == (uint)slot);
                     var covering  =
                         draft.Items.FirstOrDefault(x => (GetBlockedEquipmentSlots(x.ItemID) & (1u << slot)) != 0);
