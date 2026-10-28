@@ -9,7 +9,6 @@ using Newtonsoft.Json.Linq;
 using OmenTools.Dalamud;
 using OmenTools.Interop.Game.Lumina;
 using OmenTools.OmenService;
-using ItemSheet = Lumina.Excel.Sheets.Item;
 
 namespace DailyRoutines.ModulesPublic.Interface.UnifiedGlamourManager;
 
@@ -275,7 +274,7 @@ public partial class UnifiedGlamourManager
                 preset.Items.RemoveAll
                 (entry =>
                     {
-                        if (LuminaGetter.TryGetRow<ItemSheet>(entry.ItemID, out var row) &&
+                        if (LuminaGetter.TryGetRow<Item>(entry.ItemID, out var row) &&
                             LuminaGetter.TryGetRow<EquipSlotCategory>(row.EquipSlotCategory.RowId, out var category) &&
                             IsEquipSlotCategoryCompatibleWithPlateSlot(category, entry.SlotIndex) &&
                             (entry.Stain0ID == 0 || LuminaGetter.TryGetRow<Stain>(entry.Stain0ID, out _)) &&

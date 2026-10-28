@@ -3,7 +3,6 @@ using Dalamud.Utility;
 using Lumina.Excel.Sheets;
 using OmenTools.Interop.Game.Lumina;
 using OmenTools.OmenService;
-using ItemSheet = Lumina.Excel.Sheets.Item;
 
 namespace DailyRoutines.ModulesPublic.Interface.UnifiedGlamourManager;
 
@@ -60,7 +59,7 @@ public partial class UnifiedGlamourManager
         itemID = ItemUtil.GetBaseId(itemID).ItemId;
         if (BlockedEquipmentSlots.TryGetValue(itemID, out var cached))
             return cached;
-        if (!LuminaGetter.TryGetRow<ItemSheet>(itemID, out var item) ||
+        if (!LuminaGetter.TryGetRow<Item>(itemID, out var item) ||
             !LuminaGetter.TryGetRow<EquipSlotCategory>(item.EquipSlotCategory.RowId, out var category))
         {
             BlockedEquipmentSlots[itemID] = 0;

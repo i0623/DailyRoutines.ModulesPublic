@@ -1,6 +1,5 @@
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.Game;
-using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Lumina.Excel.Sheets;
 using OmenTools.Dalamud;
 using OmenTools.Info.Game.Data;
@@ -18,24 +17,24 @@ public unsafe partial class UnifiedGlamourManager
     private static readonly InventoryType[] OwnedEquipmentContainers =
         [.. Inventories.PlayerWithArmory.Where(x => x != InventoryType.ArmoryWaist)];
 
-    private static readonly Lazy<Dictionary<uint, uint[]>> NativeGlamourSetItems = new
-    (() => LuminaGetter.Get<MirageStoreSetItem>().ToDictionary
-     (
-         x => x.RowId,
-         x => new[]
-         {
-             x.MainHand.RowId, x.OffHand.RowId, x.Head.RowId, x.Body.RowId, x.Hands.RowId,
-             x.Legs.RowId, x.Feet.RowId, x.Earrings.RowId, x.Necklace.RowId, x.Bracelets.RowId, x.Ring.RowId
-         }
-     )
-    );
+    private static readonly Dictionary<uint, uint[]> NativeGlamourSetItems =
+        LuminaGetter.Get<MirageStoreSetItem>()
+                    .ToDictionary
+                    (
+                        x => x.RowId,
+                        x => new[]
+                        {
+                            x.MainHand.RowId, x.OffHand.RowId, x.Head.RowId, x.Body.RowId, x.Hands.RowId,
+                            x.Legs.RowId, x.Feet.RowId, x.Earrings.RowId, x.Necklace.RowId, x.Bracelets.RowId, x.Ring.RowId
+                        }
+                    );
 
     private HashSet<uint> GetOwnedEquipment
     (
         out bool complete
     )
     {
-        if (!IClientState.Instance().IsLoggedIn || ICondition.Instance().IsBetweenAreas)
+        if (!GameState.IsLoggedIn || ICondition.Instance().IsBetweenAreas)
         {
             complete = false;
             return CacheOwnedEquipment([], complete);
@@ -72,29 +71,19 @@ public unsafe partial class UnifiedGlamourManager
             }
         }
 
-        var storageComplete = AddNativeStorageOwnership
-        (
-            ItemFinderModule.Instance(),
-            LocalPlayerState.ContentID,
-            NativeGlamourSetItems.Value,
-            NativeCabinetItems.Value,
-            owned
-        );
+        var storageComplete = AddNativeStorageOwnership(LocalPlayerState.ContentID, owned);
         complete &= storageComplete;
         return CacheOwnedEquipment(owned, complete);
     }
 
     private static bool AddNativeStorageOwnership
     (
-        ItemFinderModule*        finder,
-        ulong                    contentID,
-        Dictionary<uint, uint[]> sets,
-        Dictionary<uint, uint>   cabinetItems,
-        HashSet<uint>            owned
+        ulong         contentID,
+        HashSet<uint> owned
     )
     {
-        var dresserItems = ReadNativePrismBoxItems(finder, contentID);
-        var cabinet      = ReadNativeCabinetItems(finder, contentID, cabinetItems);
+        var dresserItems = ReadNativePrismBoxItems(contentID);
+        var cabinet      = ReadNativeCabinetItems(contentID);
         if (dresserItems == null || cabinet == null)
             return false;
 
@@ -103,7 +92,7 @@ public unsafe partial class UnifiedGlamourManager
             var itemID = ItemUtil.GetBaseId(rawItemID).ItemId;
             if (itemID == 0)
                 continue;
-            if (!sets.TryGetValue(itemID, out var parts))
+            if (!NativeGlamourSetItems.TryGetValue(itemID, out var parts))
             {
                 owned.Add(itemID);
                 continue;
@@ -119,7 +108,7 @@ public unsafe partial class UnifiedGlamourManager
         foreach (var (_, itemID) in cabinet)
             owned.Add(itemID);
 
-        var status = GetNativeStorageStatus(finder, contentID);
+        var status = GetNativeStorageStatus(contentID);
         return status.PrismBox && status.Cabinet;
     }
 

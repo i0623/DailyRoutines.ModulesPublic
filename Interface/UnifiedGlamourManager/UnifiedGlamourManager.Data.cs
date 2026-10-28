@@ -7,6 +7,7 @@ using Lumina.Excel.Sheets;
 using OmenTools.Dalamud;
 using OmenTools.Interop.Game.Lumina;
 using OmenTools.OmenService;
+using CabinetSheet = Lumina.Excel.Sheets.Cabinet;
 using GameCabinet = FFXIVClientStructs.FFXIV.Client.Game.UI.Cabinet;
 using ItemSheet = Lumina.Excel.Sheets.Item;
 using static FFXIVClientStructs.FFXIV.Client.UI.Agent.AgentMiragePrismMiragePlateData;
@@ -20,36 +21,40 @@ public unsafe partial class UnifiedGlamourManager
 
     private readonly Dictionary<uint, (uint ItemID, uint Stain0ID, uint Stain1ID)> prismBoxStains = [];
 
-    private static readonly Lazy<Dictionary<uint, uint>> NativeCabinetItems = new
-    (() => LuminaGetter.Get<Lumina.Excel.Sheets.Cabinet>()
-                       .Where(x => x.Item.RowId != 0)
-                       .ToDictionary(x => x.RowId, x => x.Item.RowId)
-    );
+    private static readonly Dictionary<uint, uint> NativeCabinetItems =
+        LuminaGetter.Get<CabinetSheet>()
+                    .Where(x => x.Item.RowId != 0)
+                    .ToDictionary(x => x.RowId, x => x.Item.RowId);
 
     private static bool IsNativeStorageOwner
     (
-        ItemFinderModule* finder,
-        ulong             contentID
-    ) =>
-        finder != null && contentID != 0 && finder->CharacterContentId == contentID;
+        ulong contentID
+    )
+    {
+        var finder = ItemFinderModule.Instance();
+        return finder != null && contentID != 0 && finder->CharacterContentId == contentID;
+    }
 
     private static (bool PrismBox, bool Cabinet) GetNativeStorageStatus
     (
-        ItemFinderModule* finder,
-        ulong             contentID
-    ) =>
-        !IsNativeStorageOwner(finder, contentID) ?
-            (false, false) :
-            (finder->IsGlamourDresserCached, finder->CabinetState == (byte)GameCabinet.CabinetState.Loaded);
+        ulong contentID
+    )
+    {
+        if (!IsNativeStorageOwner(contentID))
+            return (false, false);
+
+        var finder = ItemFinderModule.Instance();
+        return (finder->IsGlamourDresserCached, finder->CabinetState == (byte)GameCabinet.CabinetState.Loaded);
+    }
 
     private static bool SyncNativeCabinetCache
     (
-        ItemFinderModule*  finder,
         ulong              contentID,
         ReadOnlySpan<uint> unlockBits
     )
     {
-        if (!IsNativeStorageOwner(finder, contentID) || unlockBits.Length != finder->CabinetItemUnlockBits.Length)
+        var finder = ItemFinderModule.Instance();
+        if (!IsNativeStorageOwner(contentID) || unlockBits.Length != finder->CabinetItemUnlockBits.Length)
             return false;
 
         if (finder->CabinetState == (byte)GameCabinet.CabinetState.Loaded && unlockBits.SequenceEqual(finder->CabinetItemUnlockBits))
@@ -63,39 +68,39 @@ public unsafe partial class UnifiedGlamourManager
 
     private static bool RefreshNativeCabinetCache()
     {
-        if (!IClientState.Instance().IsLoggedIn || ICondition.Instance().IsBetweenAreas)
+        if (!GameState.IsLoggedIn || ICondition.Instance().IsBetweenAreas)
             return false;
 
-        var finder    = ItemFinderModule.Instance();
         var contentID = LocalPlayerState.ContentID;
-        if (!IsNativeStorageOwner(finder, contentID))
+        if (!IsNativeStorageOwner(contentID))
             return false;
 
         var cabinet = GetLoadedCabinet();
         if (cabinet == null)
             return false;
 
+        var        finder     = ItemFinderModule.Instance();
         Span<uint> unlockBits = stackalloc uint[finder->CabinetItemUnlockBits.Length];
         unlockBits.Clear();
-        foreach (var cabinetID in NativeCabinetItems.Value.Keys)
+        foreach (var cabinetID in NativeCabinetItems.Keys)
         {
             var word = cabinetID / 32;
             if (word < unlockBits.Length && cabinet->IsItemInCabinet(cabinetID))
                 unlockBits[(int)word] |= 1u << (int)(cabinetID % 32);
         }
 
-        return SyncNativeCabinetCache(finder, contentID, unlockBits);
+        return SyncNativeCabinetCache(contentID, unlockBits);
     }
 
     private static List<(uint RawItemID, uint Index, ushort? MissingSlots)> ReadNativePrismBoxItems
     (
-        ItemFinderModule* finder,
-        ulong             contentID
+        ulong contentID
     )
     {
-        if (!IsNativeStorageOwner(finder, contentID))
+        if (!IsNativeStorageOwner(contentID))
             return null;
 
+        var                                                      finder = ItemFinderModule.Instance();
         List<(uint RawItemID, uint Index, ushort? MissingSlots)> result = [];
         for (var index = 0; index < finder->GlamourDresserItemIds.Length; index++)
         {
@@ -114,18 +119,17 @@ public unsafe partial class UnifiedGlamourManager
 
     private static List<(uint CabinetID, uint ItemID)> ReadNativeCabinetItems
     (
-        ItemFinderModule*      finder,
-        ulong                  contentID,
-        Dictionary<uint, uint> cabinetItems
+        ulong contentID
     )
     {
-        if (!IsNativeStorageOwner(finder, contentID))
+        if (!IsNativeStorageOwner(contentID))
             return null;
 
+        var                                 finder = ItemFinderModule.Instance();
         List<(uint CabinetID, uint ItemID)> result = [];
 
         var bits = finder->CabinetItemUnlockBits;
-        foreach (var (cabinetID, itemID) in cabinetItems)
+        foreach (var (cabinetID, itemID) in NativeCabinetItems)
         {
             var word = cabinetID / 32;
             if (word < bits.Length && (bits[(int)word] & (1u << (int)(cabinetID % 32))) != 0)
@@ -162,7 +166,7 @@ public unsafe partial class UnifiedGlamourManager
         UnifiedItem? reselectItem = null
     )
     {
-        if (!IClientState.Instance().IsLoggedIn || ICondition.Instance().IsBetweenAreas)
+        if (!GameState.IsLoggedIn || ICondition.Instance().IsBetweenAreas)
             return;
 
         var itemToReselect = reselectItem ?? selectedItem;
@@ -172,9 +176,9 @@ public unsafe partial class UnifiedGlamourManager
                 isRefreshingItems = true;
                 try
                 {
-                    if (!IClientState.Instance().IsLoggedIn ||
+                    if (!GameState.IsLoggedIn ||
                         ICondition.Instance().IsBetweenAreas ||
-                        !IsNativeStorageOwner(ItemFinderModule.Instance(), LocalPlayerState.ContentID))
+                        !IsNativeStorageOwner(LocalPlayerState.ContentID))
                     {
                         return;
                     }
@@ -206,15 +210,15 @@ public unsafe partial class UnifiedGlamourManager
     // 投影台/收藏柜数据读取
     private List<UnifiedItem> LoadPrismBoxItems()
     {
-        var finder    = ItemFinderModule.Instance();
         var contentID = LocalPlayerState.ContentID;
-        var cached    = ReadNativePrismBoxItems(finder, contentID);
+        var cached    = ReadNativePrismBoxItems(contentID);
         if (cached == null)
             return [];
 
+        var finder     = ItemFinderModule.Instance();
         var liveLoaded = TryGetLoadedMirageManager(out var manager);
 
-        if (GetNativeStorageStatus(finder, contentID).PrismBox)
+        if (GetNativeStorageStatus(contentID).PrismBox)
         {
             foreach (var index in prismBoxStains.Keys.ToArray())
             {
@@ -270,9 +274,7 @@ public unsafe partial class UnifiedGlamourManager
 
     private List<UnifiedItem> LoadCabinetItems()
     {
-        var finder    = ItemFinderModule.Instance();
-        var contentID = LocalPlayerState.ContentID;
-        var cached    = ReadNativeCabinetItems(finder, contentID, NativeCabinetItems.Value);
+        var cached = ReadNativeCabinetItems(LocalPlayerState.ContentID);
         if (cached == null)
             return [];
 
@@ -462,10 +464,4 @@ public unsafe partial class UnifiedGlamourManager
         presetEditorItemsDirty = true;
         MarkFilteredItemsDirty(true, true);
     }
-
-    private void OnStoredItemsLogout
-    (
-        int code,
-        int type
-    ) => ResetStoredItemsSession();
 }

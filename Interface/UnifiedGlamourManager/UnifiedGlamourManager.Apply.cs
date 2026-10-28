@@ -340,22 +340,13 @@ public unsafe partial class UnifiedGlamourManager
 
     private static bool CanTryOnPreset()
     {
-        if (!IClientState.Instance().IsLoggedIn)
-            return false;
-
-        if (AgentTryon.Instance() == null)
+        if (!GameState.IsLoggedIn || AgentTryon.Instance() == null)
             return false;
 
         var condition = ICondition.Instance();
-        var manager   = RaptureAtkUnitManager.Instance();
-        var dresser   = manager == null ?
-                            null :
-                            manager->GetAddonByName(nameof(MiragePrismPrismBox));
-        var plateEditor = manager == null ?
-                              null :
-                              manager->GetAddonByName(nameof(MiragePrismMiragePlate));
         var glamourWindowVisible =
-            (dresser != null && dresser->IsVisible) || (plateEditor != null && plateEditor->IsVisible);
+            (MiragePrismPrismBox    != null && MiragePrismPrismBox->IsVisible) ||
+            (MiragePrismMiragePlate != null && MiragePrismMiragePlate->IsVisible);
         return !condition.IsBetweenAreas && (!condition.IsOccupiedInEvent || glamourWindowVisible);
     }
 

@@ -3,7 +3,6 @@ using DailyRoutines.Extensions;
 using Dalamud.Interface.Utility;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
-using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Lumina.Excel.Sheets;
 using OmenTools.Interop.Game.Lumina;
 using OmenTools.OmenService;
@@ -791,7 +790,7 @@ public unsafe partial class UnifiedGlamourManager
     // UI - Preset
     private void DrawStatusBar()
     {
-        var (mirageLoaded, cabinetLoaded) = GetNativeStorageStatus(ItemFinderModule.Instance(), LocalPlayerState.ContentID);
+        var (mirageLoaded, cabinetLoaded) = GetNativeStorageStatus(LocalPlayerState.ContentID);
         var readyText                     = Lang.Get("UnifiedGlamourManager-Editor-NativeCacheReady");
         var unknownText                   = Lang.Get("UnifiedGlamourManager-Editor-NativeCacheUnknown");
         var unavailableColor              = KnownColor.Goldenrod;

@@ -4,7 +4,6 @@ using Dalamud.Interface.Colors;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using Lumina.Excel.Sheets;
 using OmenTools.Interop.Game.Lumina;
-using ItemSheet = Lumina.Excel.Sheets.Item;
 
 namespace DailyRoutines.ModulesPublic.Interface.UnifiedGlamourManager;
 
@@ -182,7 +181,7 @@ public unsafe partial class UnifiedGlamourManager
                     var entry     = draft.Items.FirstOrDefault(x => x.SlotIndex == (uint)slot);
                     var covering  =
                         draft.Items.FirstOrDefault(x => (GetBlockedEquipmentSlots(x.ItemID) & (1u << slot)) != 0);
-                    var row       = LuminaGetter.GetRow<ItemSheet>(ItemUtil.GetBaseId(entry.ItemID).ItemId)
+                    var row       = LuminaGetter.GetRow<Item>(ItemUtil.GetBaseId(entry.ItemID).ItemId)
                                                 .GetValueOrDefault();
                     var itemLabel = Lang.Get("None");
                     if (entry.ItemID != 0)

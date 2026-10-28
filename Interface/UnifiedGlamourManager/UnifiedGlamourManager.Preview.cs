@@ -42,11 +42,7 @@ public unsafe partial class UnifiedGlamourManager
             );
         }
 
-        var manager = RaptureAtkUnitManager.Instance();
-        if (manager == null)
-            return;
-
-        var addon = manager->GetAddonByName(nameof(Tryon));
+        var addon = Tryon;
         if (addon == null || !addon->IsVisible)
         {
             wasTryOnVisible = false;

@@ -5,7 +5,6 @@ using DailyRoutines.Extensions;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Lumina.Excel.Sheets;
-using OmenTools.Dalamud;
 using OmenTools.OmenService;
 
 namespace DailyRoutines.ModulesPublic.Interface.UnifiedGlamourManager;
@@ -38,9 +37,10 @@ public partial class UnifiedGlamourManager : ModuleBase
 
         TaskHelper = new() { TimeoutMS = TASK_TIMEOUT_MS };
 
-        IClientState.Instance().Login  += ResetStoredItemsSession;
-        IClientState.Instance().Logout += OnStoredItemsLogout;
-        StartRefreshAll();
+        GameState.Instance().Login  += ResetStoredItemsSession;
+        GameState.Instance().Logout += ResetStoredItemsSession;
+        if (GameState.IsLoggedIn)
+            StartRefreshAll();
 
         Overlay ??= new(this);
 
@@ -62,7 +62,6 @@ public partial class UnifiedGlamourManager : ModuleBase
 
         addonLifecycle.RegisterListener(AddonEvent.PostSetup,   ["MiragePrismPrismBox", "Cabinet"], OnStorageAddon);
         addonLifecycle.RegisterListener(AddonEvent.PostRefresh, ["MiragePrismPrismBox", "Cabinet"], OnStorageAddon);
-        addonLifecycle.RegisterListener(AddonEvent.PostDraw,    "Cabinet",                          OnStorageAddon);
 
         CommandManager.Instance().AddSubCommand(COMMAND, new(OnCommand) { HelpMessage = Lang.Get("UnifiedGlamourManager-CommandHelp") });
 
@@ -79,16 +78,15 @@ public partial class UnifiedGlamourManager : ModuleBase
 
     protected override void Uninit()
     {
-        IClientState.Instance().Login  -= ResetStoredItemsSession;
-        IClientState.Instance().Logout -= OnStoredItemsLogout;
+        GameState.Instance().Login  -= ResetStoredItemsSession;
+        GameState.Instance().Logout -= ResetStoredItemsSession;
         EndPresetEditing();
         presetItemRows?.Dispose();
         presetItemRows = null;
         presetItemIndex.Clear();
-        openItemSearchMenu      = false;
-        itemSearchOptions       = [];
         enablePresetLivePreview = false;
         ResetStoredItemsSession();
+
         if (openOverlayPlateTabPayload != null)
             LinkPayloadManager.Instance().Unreg(openOverlayPlateTabPayload.CommandId);
         

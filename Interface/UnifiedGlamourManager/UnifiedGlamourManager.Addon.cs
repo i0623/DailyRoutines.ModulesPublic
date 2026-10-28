@@ -15,16 +15,8 @@ public unsafe partial class UnifiedGlamourManager
     (
         AddonEvent type,
         AddonArgs  args
-    )
-    {
-        if (type == AddonEvent.PostDraw &&
-            (!Throttler.Shared.Throttle("UnifiedGlamourManager-CabinetCache") || !RefreshNativeCabinetCache()))
-        {
-            return;
-        }
-
+    ) =>
         StartRefreshAll();
-    }
 
     private void OnPlateEditorAddon
     (

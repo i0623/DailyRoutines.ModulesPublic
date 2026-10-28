@@ -4,7 +4,6 @@ using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using Lumina.Excel.Sheets;
 using OmenTools.Interop.Game.Lumina;
-using ItemSheet = Lumina.Excel.Sheets.Item;
 
 namespace DailyRoutines.ModulesPublic.Interface.UnifiedGlamourManager;
 
@@ -21,7 +20,7 @@ public unsafe partial class UnifiedGlamourManager
     private bool   onlyOwnedPresetItems;
     private bool   presetEditorItemsDirty;
 
-    private          IEnumerator<ItemSheet>                       presetItemRows;
+    private          IEnumerator<Item>                            presetItemRows;
     private readonly List<(PresetItemCandidate Item, uint Slots)> presetItemIndex    = [];
     private readonly List<(Stain Stain, string Name)>             presetEditorStains = [];
 
@@ -102,7 +101,7 @@ public unsafe partial class UnifiedGlamourManager
             return;
         }
 
-        var row     = LuminaGetter.GetRow<ItemSheet>(itemID).GetValueOrDefault();
+        var row     = LuminaGetter.GetRow<Item>(itemID).GetValueOrDefault();
         var blocked = GetBlockedEquipmentSlots(itemID);
         editingPreset.Items.RemoveAll
         (x => (blocked & (1u << (int)x.SlotIndex)) != 0 ||
@@ -152,7 +151,7 @@ public unsafe partial class UnifiedGlamourManager
         var search = presetEditorSearchText.Trim();
         if (presetEditorSlotItems.Count == 0)
         {
-            presetItemRows ??= LuminaGetter.Get<ItemSheet>().GetEnumerator();
+            presetItemRows ??= LuminaGetter.Get<Item>().GetEnumerator();
             for (var index = 0; index < 4096; index++)
             {
                 if (!presetItemRows.MoveNext())
@@ -241,7 +240,7 @@ public unsafe partial class UnifiedGlamourManager
             return;
 
         var entry = editingPreset.Items.FirstOrDefault(x => x.SlotIndex == (uint)editingSlotIndex);
-        var row   = LuminaGetter.GetRow<ItemSheet>(ItemUtil.GetBaseId(entry.ItemID).ItemId).GetValueOrDefault();
+        var row   = LuminaGetter.GetRow<Item>(ItemUtil.GetBaseId(entry.ItemID).ItemId).GetValueOrDefault();
         if (entry.ItemID == 0 || row.DyeCount <= editingStainIndex)
             return;
 
