@@ -17,10 +17,10 @@ public partial class UnifiedGlamourManager
     private          List<PlatePreset>?      glamaholicImportPreview;
     private          string                  glamaholicImportStatus  = string.Empty;
     private          bool                    glamaholicImportExpanded;
-    private          CancellationTokenSource importReadCancellation;
+    private          CancellationTokenSource importCancellation;
     private readonly List<string>            glamaholicImportSkipped = [];
 
-    private sealed class GlamaholicRead
+    private sealed class GlamaholicParseResult
     {
         public List<PlatePreset>                              Presets        = [];
         public List<PlatePreset>                              FillEmpty      = [];
@@ -43,7 +43,7 @@ public partial class UnifiedGlamourManager
         return FormattableString.Invariant($"{title.Length}:{title}{note.Length}:{note}|") + string.Join(";", items);
     }
 
-    private static GlamaholicRead ParseGlamaholicPresets
+    private static GlamaholicParseResult ParseGlamaholicPresets
     (
         string json,
         string untitledTitle
@@ -56,7 +56,7 @@ public partial class UnifiedGlamourManager
         if (nodes == null)
             throw new FormatException("Invalid Glamaholic root");
 
-        var result = new GlamaholicRead();
+        var result = new GlamaholicParseResult();
         var slots  = new[]
         {
             "MainHand",
@@ -180,8 +180,8 @@ public partial class UnifiedGlamourManager
 
     private void ResetGlamaholicImport()
     {
-        var cancellation       = importReadCancellation;
-        importReadCancellation = null;
+        var cancellation   = importCancellation;
+        importCancellation = null;
         cancellation?.Cancel();
         cancellation?.Dispose();
         glamaholicImportPreview = null;
@@ -189,16 +189,16 @@ public partial class UnifiedGlamourManager
         glamaholicImportStatus = string.Empty;
     }
 
-    private async Task ReadGlamaholicPresets
+    private async Task LoadGlamaholicPresets
     (
         string                  path,
         string                  untitledTitle,
         CancellationTokenSource cancellation
     )
     {
-        var            token  = cancellation.Token;
-        GlamaholicRead parsed = null;
-        Exception      error  = null;
+        var                   token  = cancellation.Token;
+        GlamaholicParseResult parsed = null;
+        Exception             error  = null;
         try
         {
             parsed = await Task.Run
@@ -219,10 +219,10 @@ public partial class UnifiedGlamourManager
         await IFramework.Instance().RunOnFrameworkThread
         (() =>
             {
-                if (importReadCancellation != cancellation)
+                if (importCancellation != cancellation)
                     return;
 
-                importReadCancellation = null;
+                importCancellation = null;
                 cancellation.Dispose();
                 if (IsDisposed || token.IsCancellationRequested)
                     return;
@@ -234,14 +234,14 @@ public partial class UnifiedGlamourManager
                     return;
                 }
 
-                FinishGlamaholicRead(parsed);
+                FinishGlamaholicImport(parsed);
             }
         ).ConfigureAwait(false);
     }
 
-    private void FinishGlamaholicRead
+    private void FinishGlamaholicImport
     (
-        GlamaholicRead completed
+        GlamaholicParseResult completed
     )
     {
         try
@@ -249,6 +249,7 @@ public partial class UnifiedGlamourManager
             var parsed = completed.Presets;
             var valid  = new List<PlatePreset>();
             glamaholicImportSkipped.Clear();
+
             foreach (var skipped in completed.Skipped)
             {
                 var slotName = uint.TryParse(skipped.Slot, NumberStyles.None, CultureInfo.InvariantCulture, out var slot) ?
@@ -268,6 +269,7 @@ public partial class UnifiedGlamourManager
                     )
                 );
             }
+
             foreach (var preset in parsed)
             {
                 var originalCount = preset.Items.Count;
@@ -328,6 +330,7 @@ public partial class UnifiedGlamourManager
                         )
                     );
                 }
+
                 if (completed.FillEmpty.Contains(preset))
                     FillEmptyPresetSlots(preset);
                 valid.Add(preset);
@@ -359,7 +362,7 @@ public partial class UnifiedGlamourManager
         if (!glamaholicImportExpanded)
             return;
 
-        using (ImRaii.Disabled(importReadCancellation != null))
+        using (ImRaii.Disabled(importCancellation != null))
         {
             if (ImGui.InputText
                 (
@@ -378,13 +381,13 @@ public partial class UnifiedGlamourManager
                 glamaholicImportPreview = null;
                 glamaholicImportSkipped.Clear();
                 var path               = config.GlamaholicImportPath.Trim().Trim('"');
-                importReadCancellation = new();
+                importCancellation     = new();
                 glamaholicImportStatus = Lang.Get("UnifiedGlamourManager-Editor-ImportReading");
-                _ = ReadGlamaholicPresets
+                _ = LoadGlamaholicPresets
                 (
                     path,
                     Lang.Get("UnifiedGlamourManager-Preset-UntitledPreset"),
-                    importReadCancellation
+                    importCancellation
                 );
             }
         }

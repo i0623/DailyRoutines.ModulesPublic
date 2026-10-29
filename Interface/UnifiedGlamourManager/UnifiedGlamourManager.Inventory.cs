@@ -14,21 +14,6 @@ public unsafe partial class UnifiedGlamourManager
     private bool          ownedEquipmentComplete;
     private long          nextOwnedEquipmentRefresh;
 
-    private static readonly InventoryType[] OwnedEquipmentContainers =
-        [.. Inventories.PlayerWithArmory.Where(x => x != InventoryType.ArmoryWaist)];
-
-    private static readonly Dictionary<uint, uint[]> NativeGlamourSetItems =
-        LuminaGetter.Get<MirageStoreSetItem>()
-                    .ToDictionary
-                    (
-                        x => x.RowId,
-                        x => new[]
-                        {
-                            x.MainHand.RowId, x.OffHand.RowId, x.Head.RowId, x.Body.RowId, x.Hands.RowId,
-                            x.Legs.RowId, x.Feet.RowId, x.Earrings.RowId, x.Necklace.RowId, x.Bracelets.RowId, x.Ring.RowId
-                        }
-                    );
-
     private HashSet<uint> GetOwnedEquipment
     (
         out bool complete
@@ -49,6 +34,7 @@ public unsafe partial class UnifiedGlamourManager
         HashSet<uint> owned   = [];
         var           manager = InventoryManager.Instance();
         complete = manager != null;
+
         if (manager != null)
         {
             foreach (var type in OwnedEquipmentContainers)
@@ -71,19 +57,19 @@ public unsafe partial class UnifiedGlamourManager
             }
         }
 
-        var storageComplete = AddNativeStorageOwnership(LocalPlayerState.ContentID, owned);
+        var storageComplete = AddStorageOwnership(LocalPlayerState.ContentID, owned);
         complete &= storageComplete;
         return CacheOwnedEquipment(owned, complete);
     }
 
-    private static bool AddNativeStorageOwnership
+    private static bool AddStorageOwnership
     (
         ulong         contentID,
         HashSet<uint> owned
     )
     {
-        var dresserItems = ReadNativePrismBoxItems(contentID);
-        var cabinet      = ReadNativeCabinetItems(contentID);
+        var dresserItems = GetPrismBoxItems(contentID);
+        var cabinet      = GetCabinetItems(contentID);
         if (dresserItems == null || cabinet == null)
             return false;
 
@@ -92,7 +78,8 @@ public unsafe partial class UnifiedGlamourManager
             var itemID = ItemUtil.GetBaseId(rawItemID).ItemId;
             if (itemID == 0)
                 continue;
-            if (!NativeGlamourSetItems.TryGetValue(itemID, out var parts))
+
+            if (!GlamourSetItems.TryGetValue(itemID, out var parts))
             {
                 owned.Add(itemID);
                 continue;
@@ -100,7 +87,7 @@ public unsafe partial class UnifiedGlamourManager
 
             for (var slot = 0; slot < parts.Length; slot++)
             {
-                if (parts[slot] != 0 && IsNativeSetSlotUnlocked(missingSlots, slot))
+                if (parts[slot] != 0 && IsSetSlotUnlocked(missingSlots, slot))
                     owned.Add(parts[slot]);
             }
         }
@@ -108,7 +95,7 @@ public unsafe partial class UnifiedGlamourManager
         foreach (var (_, itemID) in cabinet)
             owned.Add(itemID);
 
-        var status = GetNativeStorageStatus(contentID);
+        var status = GetStorageStatus(contentID);
         return status.PrismBox && status.Cabinet;
     }
 
@@ -122,9 +109,29 @@ public unsafe partial class UnifiedGlamourManager
     {
         if (!ownedEquipment.SetEquals(owned) || ownedEquipmentComplete != complete)
             presetEditorItemsDirty = true;
+
         ownedEquipment            = owned;
         ownedEquipmentComplete    = complete;
         nextOwnedEquipmentRefresh = Environment.TickCount64 + 500;
         return owned;
     }
+
+    #region 常量
+
+    private static readonly InventoryType[] OwnedEquipmentContainers =
+        [.. Inventories.PlayerWithArmory.Where(x => x != InventoryType.ArmoryWaist)];
+
+    private static readonly Dictionary<uint, uint[]> GlamourSetItems =
+        LuminaGetter.Get<MirageStoreSetItem>()
+                    .ToDictionary
+                    (
+                        x => x.RowId,
+                        x => new[]
+                        {
+                            x.MainHand.RowId, x.OffHand.RowId, x.Head.RowId, x.Body.RowId, x.Hands.RowId,
+                            x.Legs.RowId, x.Feet.RowId, x.Earrings.RowId, x.Necklace.RowId, x.Bracelets.RowId, x.Ring.RowId
+                        }
+                    );
+
+    #endregion
 }

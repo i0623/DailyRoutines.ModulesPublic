@@ -82,6 +82,7 @@ public partial class UnifiedGlamourManager
             category.FingerR
         };
         var mask = 0U;
+
         for (var slot = 0; slot < flags.Length; slot++)
         {
             if (flags[slot] < 0)
@@ -106,6 +107,7 @@ public partial class UnifiedGlamourManager
         var kept     = new List<PlateItemInfo>();
         var blocked  = 0U;
         var occupied = 0U;
+
         foreach (var candidate in candidates)
         {
             var bit = 1u << (int)candidate.Entry.SlotIndex;
@@ -118,8 +120,10 @@ public partial class UnifiedGlamourManager
         }
 
         var removed = preset.Items.ToList();
+
         foreach (var entry in kept)
             removed.Remove(entry);
+
         preset.Items = kept.OrderBy(x => x.SlotIndex).ToList();
         return removed;
     }
@@ -130,6 +134,7 @@ public partial class UnifiedGlamourManager
     )
     {
         var blocked = preset.Items.Aggregate(0U, (mask, entry) => mask | GetBlockedEquipmentSlots(entry.ItemID));
+
         for (var slot = 0U; slot < EmperorItemIDs.Length; slot++)
         {
             if ((blocked & (1u << (int)slot)) != 0 || EmperorItemIDs[slot] == 0 || preset.Items.Any(x => x.SlotIndex == slot && x.ItemID != 0))

@@ -790,7 +790,7 @@ public unsafe partial class UnifiedGlamourManager
     // UI - Preset
     private void DrawStatusBar()
     {
-        var (mirageLoaded, cabinetLoaded) = GetNativeStorageStatus(LocalPlayerState.ContentID);
+        var (mirageLoaded, cabinetLoaded) = GetStorageStatus(LocalPlayerState.ContentID);
         var readyText                     = Lang.Get("UnifiedGlamourManager-Editor-NativeCacheReady");
         var unknownText                   = Lang.Get("UnifiedGlamourManager-Editor-NativeCacheUnknown");
         var unavailableColor              = KnownColor.Goldenrod;

@@ -8,7 +8,7 @@ namespace DailyRoutines.ModulesPublic.Interface.UnifiedGlamourManager;
 public partial class UnifiedGlamourManager
 {
     // 未读取时位图未知；已读取的位为 1 表示该套装部件缺失。
-    private static bool IsNativeSetSlotUnlocked
+    private static bool IsSetSlotUnlocked
     (
         ushort? missingSlots,
         int     slot

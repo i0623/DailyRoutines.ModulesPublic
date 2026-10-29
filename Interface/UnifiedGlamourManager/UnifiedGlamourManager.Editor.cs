@@ -149,9 +149,11 @@ public unsafe partial class UnifiedGlamourManager
         presetEditorItems.Clear();
         var owned  = GetOwnedEquipment(out _);
         var search = presetEditorSearchText.Trim();
+
         if (presetEditorSlotItems.Count == 0)
         {
             presetItemRows ??= LuminaGetter.Get<Item>().GetEnumerator();
+
             for (var index = 0; index < 4096; index++)
             {
                 if (!presetItemRows.MoveNext())
@@ -159,15 +161,18 @@ public unsafe partial class UnifiedGlamourManager
                     presetItemRows.Dispose();
                     presetItemRows = null;
                     presetItemIndex.Sort((left, right) => string.Compare(left.Item.Name, right.Item.Name, StringComparison.CurrentCulture));
+
                     for (var slot = 0; slot < PlateSlotDefinitions.Length; slot++)
                     {
                         presetEditorSlotItems[slot] = presetItemIndex.Where(x => (x.Slots & (1u << slot)) != 0)
                                                                      .Select(x => x.Item)
                                                                      .ToList();
                     }
+
                     presetItemIndex.Clear();
                     break;
                 }
+
                 var row = presetItemRows.Current;
                 if (row.RowId == 0 || row.ModelMain == 0 ||
                     !LuminaGetter.TryGetRow<EquipSlotCategory>(row.EquipSlotCategory.RowId, out var category) ||
@@ -175,21 +180,26 @@ public unsafe partial class UnifiedGlamourManager
                 {
                     continue;
                 }
+
                 var slots = 0U;
+
                 for (var slot = 0; slot < PlateSlotDefinitions.Length; slot++)
                 {
                     if (IsEquipSlotCategoryCompatibleWithPlateSlot(category, (uint)slot))
                         slots |= 1u << slot;
                 }
+
                 if (slots != 0)
                     presetItemIndex.Add((new(row.RowId, name), slots));
             }
+
             if (presetEditorSlotItems.Count == 0)
             {
                 presetEditorItemsDirty = true;
                 return;
             }
         }
+
         var candidates = presetEditorSlotItems[editingSlotIndex];
 
         presetEditorItems.AddRange
