@@ -32,7 +32,8 @@ internal partial class UnifiedGlamourManager : ModuleBase
         config = Config.Load(this) ?? new();
         NormalizeConfig();
 
-        presetEditor = new(this);
+        presetEditor       = new(this);
+        glamaholicImporter = new(this);
 
         selectedPreset = config.Presets
                                .OrderByDescending(x => x.CreatedAt)
