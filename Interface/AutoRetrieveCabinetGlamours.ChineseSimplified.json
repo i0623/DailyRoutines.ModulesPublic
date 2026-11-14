@@ -1,14 +1,12 @@
 {
   "AutoRetrieveCabinetGlamoursTitle": "取回投影台中的收藏柜装备",
-  "AutoRetrieveCabinetGlamoursDescription": "打开投影台后，点击开始，将可放入收藏柜的装备取回背包。支持完整和不完整的投影套装，仅取出实际存入且可收藏的部件，也处理单独存放的可收藏装备。每次取出一件，背包满时停止；不自动存入收藏柜。",
-  "AutoRetrieveCabinetGlamours-Start": "开始取回到背包",
+  "AutoRetrieveCabinetGlamoursDescription": "打开投影台后，点击开始，取出可放入收藏柜的装备。支持完整和不完整的投影套装，仅取出实际存入且可收藏的部件，也处理单独存放的可收藏装备。存放位置遵循游戏设置；如需进入背包，请在游戏设置中关闭获得装备时存入兵装库。",
+  "AutoRetrieveCabinetGlamours-Start": "开始取出收藏柜装备",
   "AutoRetrieveCabinetGlamours-Empty": "投影台中没有可取回的收藏柜装备。",
-  "AutoRetrieveCabinetGlamours-Running": "正在取回，请保持投影台打开，等待背包和投影台更新。",
+  "AutoRetrieveCabinetGlamours-Running": "正在取回，请保持投影台打开，等待投影台更新。",
   "AutoRetrieveCabinetGlamours-Stopped": "已停止取回。已发送的取出请求仍可能完成。",
-  "AutoRetrieveCabinetGlamours-BagUnavailable": "背包数据尚未就绪，已停止取回。",
-  "AutoRetrieveCabinetGlamours-BagFull": "背包已满，已停止取回。清理背包后可重新开始。",
-  "AutoRetrieveCabinetGlamours-Timeout": "未能确认装备已进入背包，已停止取回，请检查背包与投影台后重新开始。",
+  "AutoRetrieveCabinetGlamours-Timeout": "未能确认装备已从投影台取出，已停止取回，请检查物品栏与投影台后重新开始。",
   "AutoRetrieveCabinetGlamours-Skipped": "已跳过 {itemName}：投影台中的记录已变化，或游戏拒绝取出（例如已持有同一件独占装备）。",
-  "AutoRetrieveCabinetGlamours-Progress": "已确认取回到背包 {count} 件，跳过 {skipped} 件。",
+  "AutoRetrieveCabinetGlamours-Progress": "已从投影台取出 {count} 件，跳过 {skipped} 件。",
   "Stop": "停止"
 }

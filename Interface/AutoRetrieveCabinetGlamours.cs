@@ -5,7 +5,7 @@ using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Lumina.Excel.Sheets;
-using OmenTools.Info.Game.Data;
+using OmenTools.Dalamud;
 using OmenTools.Interop.Game.Lumina;
 
 namespace DailyRoutines.ModulesPublic;
@@ -29,7 +29,7 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
 
     protected override void Init()
     {
-        TaskHelper = new() { TimeoutMS = 10_000 };
+        TaskHelper = new() { TimeoutMS = 10_000, ShowDebug = true };
 
         GameState.Instance().Login  += Stop;
         GameState.Instance().Logout += Stop;
@@ -81,11 +81,11 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
         restoredCount = 0;
         skippedCount  = 0;
         status        = Lang.Get("AutoRetrieveCabinetGlamours-Running");
+        IPluginLog.Instance().Information($"[{ModuleName}] Start: items={entries.Count}, session={currentSession}");
 
         foreach (var entry in entries)
         {
             var requested = false;
-            var bagCount  = 0;
 
             TaskHelper.Enqueue(() =>
             {
@@ -96,19 +96,8 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
                     return;
                 }
 
-                if (!TryGetBagState(entry.ItemID, out var emptySlots, out bagCount))
-                {
-                    Fail("AutoRetrieveCabinetGlamours-BagUnavailable");
-                    return;
-                }
-
-                if (emptySlots == 0)
-                {
-                    Fail("AutoRetrieveCabinetGlamours-BagFull");
-                    return;
-                }
-
                 requested = Restore(current, entry);
+                IPluginLog.Instance().Information($"[{ModuleName}] Restore: item={entry.ItemID}, index={entry.Index}, part={entry.Slot}, sent={requested}");
                 if (!requested)
                     Skip(entry);
             });
@@ -119,12 +108,13 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
                     if (!TryGetOperationDresser(currentSession, out var current)) return true;
                     if (!requested) return true;
                     if (IsAvailable(current, entry)) return false;
-                    if (!TryGetBagState(entry.ItemID, out _, out var count) || count <= bagCount) return false;
 
                     restoredCount++;
                     UpdateProgress();
+                    IPluginLog.Instance().Information($"[{ModuleName}] Restored: item={entry.ItemID}, index={entry.Index}, part={entry.Slot}, restored={restoredCount}");
                     return true;
                 },
+                name: $"{ModuleName}: WaitRestore item={entry.ItemID}",
                 timeoutAction: () => Fail("AutoRetrieveCabinetGlamours-Timeout")
             );
         }
@@ -149,6 +139,7 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
         string key
     )
     {
+        DLog.Warning($"[{ModuleName}] {key}; restored={restoredCount}, skipped={skippedCount}, task={TaskHelper.CurrentTaskName}");
         Stop();
         status = Lang.Get(key);
         NotifyHelper.Instance().Chat(status);
@@ -159,6 +150,7 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
     )
     {
         skippedCount++;
+        DLog.Warning($"[{ModuleName}] Skipped: item={entry.ItemID}, index={entry.Index}, part={entry.Slot}");
         UpdateProgress();
         var name = LuminaGetter.GetRow<Item>(entry.ItemID)?.Name.ExtractText() ?? entry.ItemID.ToString();
         NotifyHelper.Instance().Chat(Lang.Get("AutoRetrieveCabinetGlamours-Skipped", new Dictionary<string, object> { ["itemName"] = name }));
@@ -244,36 +236,6 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
 
         var mask = (ushort)(1 << entry.Slot);
         return manager->RestorePrismBoxSetItem(entry.Index, (byte*)&mask);
-    }
-
-    private static bool TryGetBagState(
-        uint     itemID,
-        out int  emptySlots,
-        out int  count
-    )
-    {
-        emptySlots = 0;
-        count      = 0;
-        var inventory = InventoryManager.Instance();
-        if (inventory == null) return false;
-
-        foreach (var type in Inventories.Player)
-        {
-            var container = inventory->GetInventoryContainer(type);
-            if (container == null || !container->IsLoaded) return false;
-
-            for (var index = 0; index < container->Size; index++)
-            {
-                var item = container->GetInventorySlot(index);
-                if (item == null) return false;
-                if (item->ItemId == 0)
-                    emptySlots++;
-                else if (item->GetBaseItemId() == itemID)
-                    count += item->Quantity;
-            }
-        }
-
-        return true;
     }
 
     private static List<SetPart> GetCabinetParts(
