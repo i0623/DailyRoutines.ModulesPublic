@@ -3,6 +3,7 @@ using DailyRoutines.Common.Module.Enums;
 using DailyRoutines.Common.Module.Models;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
+using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Lumina.Excel.Sheets;
 using OmenTools.Dalamud;
@@ -29,7 +30,8 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
 
     protected override void Init()
     {
-        TaskHelper = new() { TimeoutMS = 10_000, ShowDebug = true };
+        TaskHelper = new() { TimeoutMS = 10_000, RetryIntervalMS = RESTORE_RETRY_INTERVAL_MS, ShowDebug = true };
+        IPluginLog.Instance().Information($"[{ModuleName}] Loaded revision={REVISION}, intervalMS={RESTORE_INTERVAL_MS}, maxAttempts={RESTORE_MAX_ATTEMPTS}");
 
         GameState.Instance().Login  += Stop;
         GameState.Instance().Logout += Stop;
@@ -46,6 +48,7 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
 
     protected override void ConfigUI()
     {
+        ImGui.TextDisabled(Lang.Get("AutoRetrieveCabinetGlamours-Version", REVISION));
         ImGui.TextWrapped(Info.Description);
 
         using (ImRaii.Disabled(TaskHelper.IsBusy || !TryGetDresser(out _)))
@@ -86,20 +89,29 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
         foreach (var entry in entries)
         {
             var requested = false;
+            var attempts  = 0;
 
             TaskHelper.Enqueue(() =>
             {
-                if (!TryGetOperationDresser(currentSession, out var current)) return;
+                if (!TryGetOperationDresser(currentSession, out var current)) return true;
                 if (!IsAvailable(current, entry))
                 {
                     Skip(entry);
-                    return;
+                    return true;
                 }
 
+                attempts++;
                 requested = Restore(current, entry);
-                IPluginLog.Instance().Information($"[{ModuleName}] Restore: item={entry.ItemID}, index={entry.Index}, part={entry.Slot}, sent={requested}");
-                if (!requested)
+                IPluginLog.Instance().Information($"[{ModuleName}] Restore: item={entry.ItemID}, index={entry.Index}, part={entry.Slot}, attempt={attempts}, sent={requested}");
+                if (requested) return true;
+
+                if (attempts >= RESTORE_MAX_ATTEMPTS)
+                {
                     Skip(entry);
+                    return true;
+                }
+
+                return false;
             });
 
             TaskHelper.Enqueue(
@@ -117,6 +129,8 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
                 name: $"{ModuleName}: WaitRestore item={entry.ItemID}",
                 timeoutAction: () => Fail("AutoRetrieveCabinetGlamours-Timeout")
             );
+
+            TaskHelper.DelayNext(RESTORE_INTERVAL_MS, ModuleName);
         }
 
         TaskHelper.Enqueue(() =>
@@ -201,7 +215,7 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
         for (var index = 0; index < manager->PrismBoxItemIds.Length; index++)
         {
             var rawItemID = manager->PrismBoxItemIds[index];
-            var itemID    = rawItemID % 1_000_000;
+            var itemID    = ItemUtil.GetBaseId(rawItemID).ItemId;
             if (itemID == 0) continue;
 
             if (SetParts.TryGetValue(itemID, out var parts))
@@ -263,6 +277,11 @@ internal unsafe class AutoRetrieveCabinetGlamours : ModuleBase
     private readonly record struct SetPart(uint ItemID, int Slot);
 
     #region 常量
+
+    private const string REVISION                   = "2026.11.14.3";
+    private const int    RESTORE_INTERVAL_MS         = 500;
+    private const int    RESTORE_RETRY_INTERVAL_MS   = 500;
+    private const int    RESTORE_MAX_ATTEMPTS        = 3;
 
     private static readonly FrozenSet<uint> CabinetItems =
         LuminaGetter.Get<Cabinet>()
