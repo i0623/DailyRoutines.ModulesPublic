@@ -5,7 +5,7 @@ using OmenTools.Interop.Game.Lumina;
 
 namespace DailyRoutines.ModulesPublic;
 
-internal unsafe partial class UnifiedGlamourManager
+internal partial class UnifiedGlamourManager
 {
     private PresetEditor presetEditor;
 
@@ -19,7 +19,6 @@ internal unsafe partial class UnifiedGlamourManager
         private readonly List<(PresetItemCandidate Item, uint Slots)> itemIndex = [];
 
         private long nextPreviewAt;
-        private bool wasTryOnVisible;
 
         public PlatePreset? OriginalPreset { get; private set; }
         public PlatePreset? Draft          { get; private set; }
@@ -59,7 +58,6 @@ internal unsafe partial class UnifiedGlamourManager
         public void End()
         {
             IsPreviewPending = false;
-            wasTryOnVisible  = false;
             IsOpen           = false;
             Draft            = null;
             baseline         = null;
@@ -300,43 +298,6 @@ internal unsafe partial class UnifiedGlamourManager
                 IsPreviewPending = false;
                 owner.StartTryOnPreset(Draft);
             }
-
-            var addon = Tryon;
-            if (addon == null || !addon->IsVisible)
-            {
-                wasTryOnVisible = false;
-                return;
-            }
-
-            if (wasTryOnVisible)
-                return;
-
-            wasTryOnVisible = true;
-            var position    = ImGui.GetWindowPos();
-            var size        = ImGui.GetWindowSize();
-            var viewport    = ImGui.GetMainViewport();
-            var width       = addon->GetScaledWidth(true);
-            var height      = addon->GetScaledHeight(true);
-            var x           = position.X + size.X + (8 * GlobalUIScale);
-
-            if (x + width > viewport.WorkPos.X + viewport.WorkSize.X)
-                x = position.X - width - (8 * GlobalUIScale);
-
-            x = Math.Clamp
-            (
-                x,
-                viewport.WorkPos.X,
-                Math.Max(viewport.WorkPos.X, viewport.WorkPos.X + viewport.WorkSize.X - width)
-            );
-            var y = Math.Clamp
-            (
-                position.Y,
-                viewport.WorkPos.Y,
-                Math.Max(viewport.WorkPos.Y, viewport.WorkPos.Y + viewport.WorkSize.Y - height)
-            );
-
-            if (addon->X != (short)x || addon->Y != (short)y)
-                addon->SetPosition((short)x, (short)y);
         }
 
         public void Dispose()
