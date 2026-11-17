@@ -9,8 +9,6 @@ using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using Lumina.Excel.Sheets;
 using Lumina.Text.ReadOnly;
 using OmenTools.Interop.Game.Lumina;
-using OmenTools.Interop.Game.Models;
-using OmenTools.KamiToolKit.Addons.InputNumeric;
 using OmenTools.OmenService;
 using AgentEmote = FFXIVClientStructs.Expansion.FFXIV.Client.UI.Agent.AgentEmote;
 
@@ -77,6 +75,9 @@ internal partial class AutoReuseEmote : ModuleBase
         currentEmoteID = 0;
         TaskHelper.Abort();
 
+        settingsAddon?.Dispose();
+        settingsAddon = null;
+
         ContextMenuManager.Instance().Unreg(menuItem);
 
         CommandManager.Instance().RemoveSubCommand(COMMAND);
@@ -98,7 +99,7 @@ internal partial class AutoReuseEmote : ModuleBase
 
         var emoteName             = args;
         var repeatInterval        = config.DefaultInterval;
-        var repeatAfterCompletion = false;
+        var repeatAfterCompletion = config.RepeatAfterCompletion;
 
         var intervalStartIndex = args.LastIndexOf(' ');
 
@@ -125,8 +126,9 @@ internal partial class AutoReuseEmote : ModuleBase
                 return;
             }
 
-            emoteName      = args[..intervalStartIndex].TrimEnd();
-            repeatInterval = parsedInterval;
+            emoteName             = args[..intervalStartIndex].TrimEnd();
+            repeatInterval        = parsedInterval;
+            repeatAfterCompletion = false;
         }
 
         emoteName = emoteName.Trim('"', '“', '”');
@@ -193,7 +195,7 @@ internal partial class AutoReuseEmote : ModuleBase
     (
         ushort emoteID,
         uint   interval,
-        bool   repeatAfterCompletion = false
+        bool   repeatAfterCompletion
     )
     {
         TaskHelper.Abort();
@@ -421,15 +423,7 @@ internal partial class AutoReuseEmote : ModuleBase
                     new()
                     {
                         Name      = Lang.Get("AutoReuseEmote-StartReuse"),
-                        OnClicked = _ => module.StartReuse((ushort)emoteID, module.config.DefaultInterval)
-                    }
-                );
-                items.Add
-                (
-                    new()
-                    {
-                        Name      = Lang.Get("AutoReuseEmote-StartAfterCompletion"),
-                        OnClicked = _ => module.StartReuse((ushort)emoteID, module.config.DefaultInterval, true)
+                        OnClicked = _ => module.StartReuse((ushort)emoteID, module.config.DefaultInterval, module.config.RepeatAfterCompletion)
                     }
                 );
             }
@@ -438,36 +432,8 @@ internal partial class AutoReuseEmote : ModuleBase
             (
                 new()
                 {
-                    Name = Lang.Get("AutoReuseEmote-ConfigureDefualtInterval"),
-                    OnClicked = _ =>
-                    {
-                        InputNumericAddon.Open
-                        (
-                            new()
-                            {
-                                Prompt          = Lang.Get("AutoReuseEmote-ConfigureDefualtInterval-PleaseInput"),
-                                Value           = (int)module.config.DefaultInterval,
-                                Min             = 100,
-                                Max             = int.MaxValue,
-                                Step            = 1000,
-                                BlockedParentID = addon->Id,
-                                ParentID        = addon->Id,
-                                Callback = (_, info) =>
-                                {
-                                    if (info.Result != InputNumericAddonResult.Confirmed)
-                                        return;
-
-                                    module.config.DefaultInterval = (uint)info.Value;
-                                    module.config.Save(module);
-                                },
-                                Position = new
-                                (
-                                    args.Addon->RootNode->GetNodeState().Center,
-                                    AddonPositionAlignment.TopCenter
-                                )
-                            }
-                        );
-                    }
+                    Name      = Lang.Get("AutoReuseEmote-ConfigureDefualtInterval"),
+                    OnClicked = _ => module.OpenSettings(addon)
                 }
             );
 
@@ -478,6 +444,7 @@ internal partial class AutoReuseEmote : ModuleBase
     private class Config : ModuleConfig
     {
         public uint DefaultInterval = 2000;
+        public bool RepeatAfterCompletion;
     }
 
     #region 常量
