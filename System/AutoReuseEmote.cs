@@ -189,7 +189,7 @@ internal class AutoReuseEmote : ModuleBase
         TaskHelper.Abort();
 
         currentEmoteID = emoteID;
-        TaskHelper.Enqueue(CanReuseEmoteNow);
+        TaskHelper.Enqueue(() => CanReuseEmoteNow(emoteID));
         TaskHelper.Enqueue
         (() =>
             {
@@ -228,7 +228,7 @@ internal class AutoReuseEmote : ModuleBase
         TaskHelper.Enqueue
         (() =>
             {
-                if (!CanReuseEmoteNow())
+                if (!CanReuseEmoteNow(id))
                 {
                     StopReuse();
                     return;
@@ -242,12 +242,22 @@ internal class AutoReuseEmote : ModuleBase
         TaskHelper.Enqueue(() => UseEmoteByID(id, interval));
     }
 
-    private static unsafe bool CanReuseEmoteNow() =>
-        !AgentMap.Instance()->IsPlayerMoving     &&
-        LocalPlayerState.Object != null          &&
-        !ICondition.Instance().IsBetweenAreas    &&
-        !ICondition.Instance().IsOccupiedInEvent &&
-        !ICondition.Instance()[ConditionFlag.InCombat];
+    private static unsafe bool CanReuseEmoteNow(ushort emoteID)
+    {
+        if (!GameState.IsLoggedIn                ||
+            LocalPlayerState.Object == null      ||
+            ICondition.Instance().IsBetweenAreas ||
+            ICondition.Instance()[ConditionFlag.InCombat])
+            return false;
+
+        var map   = AgentMap.Instance();
+        var emote = AgentEmote.Instance();
+
+        return map != null          &&
+               !map->IsPlayerMoving &&
+               emote != null        &&
+               emote->CanUseEmote(emoteID);
+    }
 
     private sealed class AutoReuseEmoteMenuItem
     (
