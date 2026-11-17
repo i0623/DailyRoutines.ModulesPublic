@@ -1,3 +1,4 @@
+using System.Globalization;
 using DailyRoutines.Common.Module.Abstractions;
 using DailyRoutines.Common.Module.Enums;
 using DailyRoutines.Common.Module.Models;
@@ -15,7 +16,7 @@ using AgentEmote = FFXIVClientStructs.Expansion.FFXIV.Client.UI.Agent.AgentEmote
 
 namespace DailyRoutines.ModulesPublic;
 
-internal class AutoReuseEmote : ModuleBase
+internal partial class AutoReuseEmote : ModuleBase
 {
     public override ModuleInfo Info { get; } = new()
     {
@@ -39,15 +40,15 @@ internal class AutoReuseEmote : ModuleBase
         AllDefaultEnabled = true
     };
 
-    private Config config = null!;
+    private Config config;
 
-    private AutoReuseEmoteMenuItem menuItem = null!;
+    private AutoReuseEmoteMenuItem menuItem;
 
     private uint currentEmoteID;
 
     protected override void Init()
     {
-        TaskHelper = new();
+        TaskHelper = new() { TimeoutMS = 0 };
 
         config = LoadConfig<Config>() ?? new();
 
@@ -73,6 +74,9 @@ internal class AutoReuseEmote : ModuleBase
 
     protected override void Uninit()
     {
+        currentEmoteID = 0;
+        TaskHelper.Abort();
+
         ContextMenuManager.Instance().Unreg(menuItem);
 
         CommandManager.Instance().RemoveSubCommand(COMMAND);
@@ -92,15 +96,22 @@ internal class AutoReuseEmote : ModuleBase
             return;
         }
 
-        var emoteName      = args;
-        var repeatInterval = config.DefaultInterval;
+        var emoteName             = args;
+        var repeatInterval        = config.DefaultInterval;
+        var repeatAfterCompletion = false;
 
         var intervalStartIndex = args.LastIndexOf(' ');
 
         if (intervalStartIndex > 0 &&
-            uint.TryParse(args[(intervalStartIndex + 1)..], out var parsedInterval))
+            args[(intervalStartIndex + 1)..].Equals(AUTO_MODE, StringComparison.OrdinalIgnoreCase))
         {
-            if (parsedInterval <= 0)
+            emoteName             = args[..intervalStartIndex].TrimEnd();
+            repeatAfterCompletion = true;
+        }
+        else if (intervalStartIndex > 0 &&
+                 uint.TryParse(args[(intervalStartIndex + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out var parsedInterval))
+        {
+            if (parsedInterval is 0 or > int.MaxValue)
             {
                 NotifyHelper.Instance().ChatError
                 (
@@ -114,13 +125,11 @@ internal class AutoReuseEmote : ModuleBase
                 return;
             }
 
-            emoteName = args[..intervalStartIndex].TrimEnd()
-                                                  .Trim("\"")
-                                                  .Trim("“")
-                                                  .Trim("”")
-                                                  .ToString();
+            emoteName      = args[..intervalStartIndex].TrimEnd();
             repeatInterval = parsedInterval;
         }
+
+        emoteName = emoteName.Trim('"', '“', '”');
 
         if (!TryParseEmoteByName(emoteName, out var emoteID))
         {
@@ -136,7 +145,7 @@ internal class AutoReuseEmote : ModuleBase
             return;
         }
 
-        StartReuse(emoteID, repeatInterval);
+        StartReuse(emoteID, repeatInterval, repeatAfterCompletion);
     }
 
     private static unsafe bool TryParseEmoteByName
@@ -183,19 +192,32 @@ internal class AutoReuseEmote : ModuleBase
     private void StartReuse
     (
         ushort emoteID,
-        uint   interval
+        uint   interval,
+        bool   repeatAfterCompletion = false
     )
     {
         TaskHelper.Abort();
 
         currentEmoteID = emoteID;
-        TaskHelper.Enqueue(() => CanReuseEmoteNow(emoteID));
+        var timelineIDs = repeatAfterCompletion ?
+                              LuminaGetter.GetRowOrDefault<Emote>(emoteID).ActionTimeline
+                                          .Select(x => (ushort)x.RowId).Where(x => x != 0).Distinct().ToArray() :
+                              [];
+
+        TaskHelper.Enqueue
+        (
+            () => WaitUntilReusable(emoteID),
+            timeoutMS: EMOTE_START_TIMEOUT_MS,
+            timeoutAction: () => StopWithError("AutoReuseEmote-Notification-Unavailable")
+        );
         TaskHelper.Enqueue
         (() =>
             {
                 var message = Lang.Get
                 (
-                    "AutoReuseEmote-Notification-Start",
+                    repeatAfterCompletion ?
+                        "AutoReuseEmote-Notification-StartAfterCompletion" :
+                        "AutoReuseEmote-Notification-Start",
                     new Dictionary<string, object>
                     {
                         ["ms"]    = interval,
@@ -206,7 +228,7 @@ internal class AutoReuseEmote : ModuleBase
                 NotifyHelper.Instance().Chat(message);
             }
         );
-        UseEmoteByID(emoteID, interval);
+        UseEmoteByID(emoteID, interval, repeatAfterCompletion, timelineIDs);
     }
 
     private void StopReuse()
@@ -221,42 +243,135 @@ internal class AutoReuseEmote : ModuleBase
 
     private unsafe void UseEmoteByID
     (
-        ushort id,
-        uint   interval
+        ushort   id,
+        uint     interval,
+        bool     repeatAfterCompletion,
+        ushort[] timelineIDs
     )
     {
+        if (currentEmoteID != id)
+            return;
+
+        EmotePlayback playback = null;
+
         TaskHelper.Enqueue
         (() =>
             {
+                if (currentEmoteID != id)
+                    return;
+
                 if (!CanReuseEmoteNow(id))
                 {
                     StopReuse();
                     return;
                 }
 
+                if (repeatAfterCompletion)
+                {
+                    var player = LocalPlayerState.Object.ToStruct();
+                    playback = new(id, player->EmoteController.EmoteId, timelineIDs);
+                }
+
                 AgentEmote.Instance()->ExecuteEmote(id, null, false, false);
+                if (playback != null)
+                    WaitForPlayback(id, playback, true);
             }
         );
 
-        TaskHelper.DelayNext((int)interval);
-        TaskHelper.Enqueue(() => UseEmoteByID(id, interval));
+        if (repeatAfterCompletion)
+        {
+            TaskHelper.Enqueue
+            (
+                () => WaitForPlayback(id, playback, true),
+                timeoutMS: EMOTE_START_TIMEOUT_MS,
+                timeoutAction: () => StopWithError("AutoReuseEmote-Notification-StartNotObserved")
+            );
+            TaskHelper.Enqueue(() => WaitForPlayback(id, playback, false));
+            TaskHelper.Enqueue
+            (
+                () => WaitUntilReusable(id),
+                timeoutMS: EMOTE_START_TIMEOUT_MS,
+                timeoutAction: () => StopWithError("AutoReuseEmote-Notification-Unavailable")
+            );
+        }
+        else
+            TaskHelper.DelayNext((int)interval);
+
+        TaskHelper.Enqueue
+        (() =>
+            {
+                if (currentEmoteID == id)
+                    UseEmoteByID(id, interval, repeatAfterCompletion, timelineIDs);
+            }
+        );
+    }
+
+    private unsafe bool WaitForPlayback(ushort emoteID, EmotePlayback playback, bool waitForStart)
+    {
+        if (currentEmoteID != emoteID)
+            return true;
+
+        if (!CanContinueReuse() || playback == null)
+        {
+            StopReuse();
+            return true;
+        }
+
+        var player         = LocalPlayerState.Object.ToStruct();
+        var playingEmoteID = player->EmoteController.EmoteId;
+        var timelines      = player->Timeline.TimelineSequencer.TimelineIds;
+
+        if (playback.IsInterrupted(playingEmoteID))
+        {
+            StopReuse();
+            return true;
+        }
+
+        if (waitForStart)
+            return playback.ObserveStart(playingEmoteID, timelines, Environment.TickCount64);
+
+        return playback.HasFinished(playingEmoteID, timelines, Environment.TickCount64);
+    }
+
+    private bool WaitUntilReusable(ushort emoteID)
+    {
+        if (currentEmoteID != emoteID)
+            return true;
+
+        if (!CanContinueReuse())
+        {
+            StopReuse();
+            return true;
+        }
+
+        return CanReuseEmoteNow(emoteID);
+    }
+
+    private void StopWithError(string key)
+    {
+        NotifyHelper.Instance().ChatError(Lang.Get(key));
+        StopReuse();
     }
 
     private static unsafe bool CanReuseEmoteNow(ushort emoteID)
     {
-        if (!GameState.IsLoggedIn                ||
-            LocalPlayerState.Object == null      ||
-            ICondition.Instance().IsBetweenAreas ||
+        if (!CanContinueReuse()) return false;
+
+        var emote = AgentEmote.Instance();
+        return emote != null && emote->CanUseEmote(emoteID);
+    }
+
+    private static unsafe bool CanContinueReuse()
+    {
+        if (!GameState.IsLoggedIn                    ||
+            LocalPlayerState.Object == null          ||
+            ICondition.Instance().IsBetweenAreas     ||
+            ICondition.Instance().IsWatchingCutscene ||
             ICondition.Instance()[ConditionFlag.InCombat])
             return false;
 
-        var map   = AgentMap.Instance();
-        var emote = AgentEmote.Instance();
-
-        return map != null          &&
-               !map->IsPlayerMoving &&
-               emote != null        &&
-               emote->CanUseEmote(emoteID);
+        var map = AgentMap.Instance();
+        return map != null && !map->IsPlayerMoving;
     }
 
     private sealed class AutoReuseEmoteMenuItem
@@ -309,6 +424,14 @@ internal class AutoReuseEmote : ModuleBase
                         OnClicked = _ => module.StartReuse((ushort)emoteID, module.config.DefaultInterval)
                     }
                 );
+                items.Add
+                (
+                    new()
+                    {
+                        Name      = Lang.Get("AutoReuseEmote-StartAfterCompletion"),
+                        OnClicked = _ => module.StartReuse((ushort)emoteID, module.config.DefaultInterval, true)
+                    }
+                );
             }
 
             items.Add
@@ -359,7 +482,9 @@ internal class AutoReuseEmote : ModuleBase
 
     #region 常量
 
-    private const string COMMAND = "remote";
+    private const string COMMAND                = "remote";
+    private const string AUTO_MODE              = "auto";
+    private const int    EMOTE_START_TIMEOUT_MS = 5_000;
 
     #endregion
 }
